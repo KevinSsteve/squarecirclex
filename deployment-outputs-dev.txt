@@ -1,0 +1,148 @@
+Experta AI Social Media Manager - Deployment Outputs
+Environment: dev
+Region: us-east-1
+AWS Account: 116708768297
+Deployed: Successfully
+Stack Name: experta-dev
+
+========================================
+CRITICAL INFORMATION FOR FRONTEND
+========================================
+
+API Gateway:
+  API URL: https://973ese4p09.execute-api.us-east-1.amazonaws.com/dev
+  API ID: 973ese4p09
+
+Cognito Authentication:
+  User Pool ID: us-east-1_J12Z1OVxM
+  User Pool Client ID: 5i385r6ath66fnunik1atuvq67
+
+========================================
+AWS RESOURCES
+========================================
+
+DynamoDB Tables:
+  Brands Table: Experta-Brands-dev
+  Posts Table: Experta-Posts-dev
+  Automation Logs Table: Experta-AutomationLogs-dev
+  Trends Table: Experta-Trends-dev
+
+S3 Storage:
+  Content Bucket: experta-content-116708768297-dev
+
+Lambda Functions:
+  Onboarding: experta-onboarding-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-onboarding-dev
+  
+  Content Generator: experta-content-generator-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-content-generator-dev
+  
+  Auto Publisher: experta-auto-publisher-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-auto-publisher-dev
+  
+  Chat Handler: experta-chat-handler-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-chat-handler-dev
+  
+  Trend Scraper: experta-trend-scraper-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-trend-scraper-dev
+  
+  Posts API: experta-posts-api-dev
+    ARN: arn:aws:lambda:us-east-1:116708768297:function:experta-posts-api-dev
+
+EventBridge:
+  Event Bus: experta-events-dev
+
+Security:
+  KMS Encryption Key ID: 648bd332-fc7d-4357-9133-a17874b0fb32
+  Lambda Execution Role: arn:aws:iam::116708768297:role/experta-lambda-execution-dev
+
+Notifications:
+  SNS Failure Topic: arn:aws:sns:us-east-1:116708768297:experta-failures-dev
+
+Monitoring:
+  CloudWatch Dashboard: Experta-dev
+  Dashboard URL: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=Experta-dev
+
+========================================
+FRONTEND ENVIRONMENT VARIABLES
+========================================
+
+Copy these to frontend/.env:
+
+VITE_API_URL=https://973ese4p09.execute-api.us-east-1.amazonaws.com/dev
+VITE_AWS_REGION=us-east-1
+VITE_USER_POOL_ID=us-east-1_J12Z1OVxM
+VITE_USER_POOL_CLIENT_ID=5i385r6ath66fnunik1atuvq67
+
+========================================
+API ENDPOINTS
+========================================
+
+Base URL: https://973ese4p09.execute-api.us-east-1.amazonaws.com/dev
+
+Authentication Required Endpoints:
+  POST   /brands                    - Create new brand (onboarding)
+  GET    /posts                     - List posts with filters
+  GET    /posts/{post_id}           - Get post details
+  PUT    /posts/{post_id}           - Update post
+  DELETE /posts/{post_id}           - Delete post
+  POST   /posts/{post_id}/regenerate - Regenerate post content
+  POST   /chat                      - Send chat message
+
+========================================
+NEXT STEPS
+========================================
+
+1. Configure SNS Email Subscription:
+   aws sns subscribe \
+     --topic-arn arn:aws:sns:us-east-1:116708768297:experta-failures-dev \
+     --protocol email \
+     --notification-endpoint your-email@example.com \
+     --region us-east-1
+
+2. Update Frontend Configuration:
+   - Copy environment variables above to frontend/.env
+   - Update frontend/src/config/amplify.js if needed
+   - Update frontend/src/config/api.js if needed
+
+3. Test the API:
+   # Test API health (should return 401 - correct!)
+   curl https://973ese4p09.execute-api.us-east-1.amazonaws.com/dev/posts
+
+4. Monitor the System:
+   - CloudWatch Dashboard: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=Experta-dev
+   - Lambda Logs: AWS Console > CloudWatch > Log groups
+   - DynamoDB Tables: AWS Console > DynamoDB > Tables
+
+5. Deploy Frontend:
+   - See frontend/AMPLIFY_DEPLOYMENT.md for instructions
+   - Configure AWS Amplify with the Cognito details above
+
+========================================
+TESTING COMMANDS
+========================================
+
+# View Lambda logs
+aws logs tail /aws/lambda/experta-onboarding-dev --follow --region us-east-1
+
+# Check DynamoDB tables
+aws dynamodb describe-table --table-name Experta-Brands-dev --region us-east-1
+
+# List S3 bucket contents
+aws s3 ls s3://experta-content-116708768297-dev/ --region us-east-1
+
+# Test API endpoint (should return 401)
+curl -X GET https://973ese4p09.execute-api.us-east-1.amazonaws.com/dev/posts
+
+========================================
+COST MONITORING
+========================================
+
+Monitor costs in AWS Cost Explorer:
+https://console.aws.amazon.com/cost-management/home?region=us-east-1#/dashboard
+
+Expected monthly cost (dev environment): $30-65
+
+========================================
+DEPLOYMENT COMPLETE! 🎉
+========================================

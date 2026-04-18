@@ -1,0 +1,4 @@
+# file: C:\Users\User\Desktop\experta\functions\content-generator\conftest.py
+# hypothesis_version: 6.151.6
+
+['AWS_REGION', 'BRANDS_TABLE_NAME', 'EVENTBRIDGE_BUS_NAME', 'POSTS_TABLE_NAME', 'S3_BUCKET_NAME', 'bedrock-runtime', 'boto3', 'default', 'dynamodb', 'errors', 'errors.error_handler', 'events', 's3', 'sts', 'test-brands-table', 'test-bucket', 'test-posts-table', 'us-east-1']

@@ -1,0 +1,4 @@
+# file: C:\Users\User\Desktop\experta\functions\trend-scraper\conftest.py
+# hypothesis_version: 6.151.6
+
+['AWS_REGION', 'INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET', 'TRENDS_TABLE_NAME', 'boto3', 'dynamodb', 'errors', 'errors.error_handler', 'secretsmanager', 'test-app-id', 'test-app-secret', 'test-trends-table', 'us-east-1']

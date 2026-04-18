@@ -1,0 +1,53 @@
+{
+  "dev": {
+    "region": "us-east-1",
+    "logLevel": "DEBUG",
+    "bedrockRegion": "us-east-1",
+    "corsOrigins": ["http://localhost:3000", "http://localhost:5173"],
+    "tokenExpirationMinutes": 60,
+    "maxRetries": 3,
+    "retryDelayMs": 1000,
+    "contentGenerationBatchSize": 30,
+    "imageResolution": {
+      "width": 1080,
+      "height": 1080
+    },
+    "trendScrapingSchedule": "cron(0 2 * * ? *)",
+    "automationLogRetentionDays": 90,
+    "trendDataRetentionDays": 7
+  },
+  "staging": {
+    "region": "us-east-1",
+    "logLevel": "INFO",
+    "bedrockRegion": "us-east-1",
+    "corsOrigins": ["https://staging.experta.app"],
+    "tokenExpirationMinutes": 60,
+    "maxRetries": 3,
+    "retryDelayMs": 1000,
+    "contentGenerationBatchSize": 30,
+    "imageResolution": {
+      "width": 1080,
+      "height": 1080
+    },
+    "trendScrapingSchedule": "cron(0 2 * * ? *)",
+    "automationLogRetentionDays": 90,
+    "trendDataRetentionDays": 7
+  },
+  "prod": {
+    "region": "us-east-1",
+    "logLevel": "WARN",
+    "bedrockRegion": "us-east-1",
+    "corsOrigins": ["https://experta.app", "https://www.experta.app"],
+    "tokenExpirationMinutes": 60,
+    "maxRetries": 3,
+    "retryDelayMs": 2000,
+    "contentGenerationBatchSize": 30,
+    "imageResolution": {
+      "width": 1080,
+      "height": 1080
+    },
+    "trendScrapingSchedule": "cron(0 2 * * ? *)",
+    "automationLogRetentionDays": 90,
+    "trendDataRetentionDays": 7
+  }
+}

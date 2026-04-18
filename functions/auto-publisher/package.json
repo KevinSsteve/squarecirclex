@@ -1,0 +1,21 @@
+{
+  "name": "experta-auto-publisher",
+  "version": "1.0.0",
+  "description": "Auto publisher Lambda function for Experta - publishes posts to social media platforms",
+  "main": "handler.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/client-secrets-manager": "^3.990.0",
+    "@aws-sdk/client-sns": "^3.600.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "fast-check": "^4.5.3",
+    "jest": "^29.7.0"
+  }
+}

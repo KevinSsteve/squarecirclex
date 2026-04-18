@@ -1,0 +1,29 @@
+{
+  "name": "experta-integration-tests",
+  "version": "1.0.0",
+  "description": "End-to-end integration tests for Experta AI Social Media Manager",
+  "scripts": {
+    "test": "jest --runInBand --detectOpenHandles",
+    "test:verbose": "jest --runInBand --detectOpenHandles --verbose",
+    "test:watch": "jest --watch --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 300000,
+    "testMatch": [
+      "**/*.test.js"
+    ],
+    "collectCoverage": false,
+    "verbose": true
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/client-eventbridge": "^3.450.0",
+    "@aws-sdk/client-lambda": "^3.450.0",
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/util-dynamodb": "^3.450.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

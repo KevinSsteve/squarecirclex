@@ -1,0 +1,1780 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Experta AI Social Media Manager - Serverless Infrastructure
+
+Globals:
+  Function:
+    Timeout: 29
+    MemorySize: 512
+    Environment:
+      Variables:
+        BRANDS_TABLE_NAME: !Ref BrandsTable
+        POSTS_TABLE_NAME: !Ref PostsTable
+        AUTOMATION_LOGS_TABLE_NAME: !Ref AutomationLogsTable
+        TRENDS_TABLE_NAME: !Ref TrendsTable
+        ONBOARDING_SESSIONS_TABLE_NAME: !Ref OnboardingSessionsTable
+        OAUTH_CONNECTIONS_TABLE_NAME: !Ref OAuthConnectionsTable
+        PLATFORM_CREDENTIALS_TABLE_NAME: !Ref PlatformCredentialsTable
+        ONZO_CHAT_HISTORY_TABLE_NAME: !Ref OnzoChatHistoryTable
+        S3_BUCKET_NAME: !Ref ContentBucket
+        EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
+        ENCRYPTION_KEY_ID: !Ref CredentialEncryptionKey
+        BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+        BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+  Api:
+    Cors:
+      AllowOrigin: "'*'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowMethods: "'OPTIONS,GET,POST,PUT,DELETE'"
+      AllowCredentials: false
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+  BedrockClaudeModelId:
+    Type: String
+    Default: us.anthropic.claude-3-5-sonnet-20240620-v1:0
+    Description: Bedrock Claude model ID - US System Profile for Cross-Region Inference (CRI)
+
+  BedrockTitanModelId:
+    Type: String
+    Default: amazon.titan-image-generator-v2:0
+    Description: Bedrock Titan Image Generator model ID
+
+Resources:
+  # ==================== KMS Key for Credential Encryption ====================
+  CredentialEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for encrypting social media credentials
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow Lambda Functions to Use Key
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:GenerateDataKey'
+            Resource: '*'
+          - Sid: Allow Secrets Manager to Use Key
+            Effect: Allow
+            Principal:
+              Service: secretsmanager.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:GenerateDataKey'
+              - 'kms:CreateGrant'
+              - 'kms:DescribeKey'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'kms:ViaService': !Sub 'secretsmanager.${AWS::Region}.amazonaws.com'
+
+  CredentialEncryptionKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/${AWS::StackName}-credentials-${Environment}'
+      TargetKeyId: !Ref CredentialEncryptionKey
+
+  # ==================== DynamoDB Tables ====================
+  BrandsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-Brands-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: brand_id
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: brand_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: user_id-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-Posts-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: post_id
+          AttributeType: S
+        - AttributeName: brand_id
+          AttributeType: S
+        - AttributeName: scheduled_time
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: post_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: brand_id-scheduled_time-index
+          KeySchema:
+            - AttributeName: brand_id
+              KeyType: HASH
+            - AttributeName: scheduled_time
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: brand_id-status-index
+          KeySchema:
+            - AttributeName: brand_id
+              KeyType: HASH
+            - AttributeName: status
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  AutomationLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-AutomationLogs-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: log_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: brand_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: log_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: brand_id-timestamp-index
+          KeySchema:
+            - AttributeName: brand_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  TrendsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-Trends-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: trend_id
+          AttributeType: S
+        - AttributeName: scraped_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: trend_id
+          KeyType: HASH
+        - AttributeName: scraped_at
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  # ==================== Phase 2 Tables ====================
+  
+  OnboardingSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-OnboardingSessions-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: user_id-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  OAuthConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-OAuthConnections-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: brand_id
+          AttributeType: S
+        - AttributeName: platform
+          AttributeType: S
+      KeySchema:
+        - AttributeName: brand_id
+          KeyType: HASH
+        - AttributeName: platform
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: platform-index
+          KeySchema:
+            - AttributeName: platform
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  PlatformCredentialsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-PlatformCredentials-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: platform
+          AttributeType: S
+      KeySchema:
+        - AttributeName: platform
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  OnzoChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-OnzoChatHistory-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+        - Key: Purpose
+          Value: ChatPersistence
+
+  # ==================== S3 Bucket for Content Storage ====================
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-content-${AWS::AccountId}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteTempUploadsAfter1Day
+            Status: Enabled
+            Prefix: temp/
+            ExpirationInDays: 1
+          - Id: TransitionOldImagesToIA
+            Status: Enabled
+            Prefix: images/
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: STANDARD_IA
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedHeaders:
+              - '*'
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  ContentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ContentBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowLambdaAccess
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+            Resource: !Sub '${ContentBucket.Arn}/*'
+          - Sid: AllowPublicReadChatImages
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - 's3:GetObject'
+            Resource: !Sub '${ContentBucket.Arn}/chat-images/*'
+
+  # ==================== EventBridge Event Bus ====================
+  ExpertaEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub '${AWS::StackName}-events-${Environment}'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  # ==================== Cognito User Pool ====================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-users-${Environment}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      EmailVerificationMessage: 'Your Experta verification code is {####}'
+      EmailVerificationSubject: 'Verify your Experta account'
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: false
+        - Name: name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: brand_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      MfaConfiguration: OPTIONAL
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      UserPoolTags:
+        Environment: !Ref Environment
+        Application: Experta
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${AWS::StackName}-web-client-${Environment}'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        RefreshToken: days
+        AccessToken: minutes
+        IdToken: minutes
+      ReadAttributes:
+        - email
+        - name
+        - custom:brand_id
+      WriteAttributes:
+        - email
+        - name
+        - custom:brand_id
+
+  # ==================== API Gateway ====================
+  ExpertaApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-api-${Environment}'
+      StageName: !Ref Environment
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowCredentials: false
+        MaxAge: "'600'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            Identity:
+              Header: Authorization
+      GatewayResponses:
+        UNAUTHORIZED:
+          StatusCode: 401
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        ACCESS_DENIED:
+          StatusCode: 403
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+
+  # ==================== SNS Topic for Failure Notifications ====================
+  FailureNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${AWS::StackName}-failures-${Environment}'
+      DisplayName: Experta Failure Notifications
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  # ==================== IAM Roles ====================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-execution-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:Query'
+                  - 'dynamodb:Scan'
+                  - 'dynamodb:BatchWriteItem'
+                  - 'dynamodb:BatchGetItem'
+                Resource:
+                  - !GetAtt BrandsTable.Arn
+                  - !Sub '${BrandsTable.Arn}/index/*'
+                  - !GetAtt PostsTable.Arn
+                  - !Sub '${PostsTable.Arn}/index/*'
+                  - !GetAtt AutomationLogsTable.Arn
+                  - !Sub '${AutomationLogsTable.Arn}/index/*'
+                  - !GetAtt TrendsTable.Arn
+                  - !GetAtt OnboardingSessionsTable.Arn
+                  - !Sub '${OnboardingSessionsTable.Arn}/index/*'
+                  - !GetAtt OAuthConnectionsTable.Arn
+                  - !Sub '${OAuthConnectionsTable.Arn}/index/*'
+                  - !GetAtt PlatformCredentialsTable.Arn
+                  - !GetAtt OnzoChatHistoryTable.Arn
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:DeleteObject'
+                Resource: !Sub '${ContentBucket.Arn}/*'
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:Encrypt'
+                  - 'kms:GenerateDataKey'
+                Resource: !GetAtt CredentialEncryptionKey.Arn
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'events:PutEvents'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:DeleteRule'
+                  - 'events:RemoveTargets'
+                Resource:
+                  - !GetAtt ExpertaEventBus.Arn
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*'
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'bedrock:InvokeModel'
+                  - 'bedrock:InvokeModelWithResponseStream'
+                Resource:
+                  - 'arn:aws:bedrock:*::foundation-model/*'
+                  - 'arn:aws:bedrock:*:*:inference-profile/*'
+                  - 'arn:aws:bedrock:*:*:provisioned-model/*'
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource: !Ref FailureNotificationTopic
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'secretsmanager:GetSecretValue'
+                  - 'secretsmanager:CreateSecret'
+                  - 'secretsmanager:UpdateSecret'
+                  - 'secretsmanager:PutSecretValue'
+                  - 'secretsmanager:DeleteSecret'
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:experta/*'
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:AdminDisableUser'
+                  - 'cognito-idp:AdminGetUser'
+                Resource: !GetAtt UserPool.Arn
+
+  # ==================== Lambda Layer for Shared Libraries ====================
+  SharedNodejsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${AWS::StackName}-shared-nodejs-${Environment}'
+      Description: Shared Node.js utilities for Experta Lambda functions
+      ContentUri: lib/nodejs/
+      CompatibleRuntimes:
+        - nodejs20.x
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: nodejs20.x
+
+  SharedPythonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${AWS::StackName}-shared-python-${Environment}'
+      Description: Shared Python utilities for Experta Lambda functions
+      ContentUri: lib/python/
+      CompatibleRuntimes:
+        - python3.13
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: python3.13
+
+  # ==================== Lambda Functions ====================
+  
+  # Onboarding Handler Lambda
+  OnboardingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-onboarding-${Environment}'
+      CodeUri: functions/onboarding/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
+          ENCRYPTION_KEY_ID: !Ref CredentialEncryptionKey
+          BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+      Events:
+        CreateBrand:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /brands
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: Onboarding
+
+  # Content Generator Lambda
+  ContentGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-content-generator-${Environment}'
+      CodeUri: functions/content-generator/
+      Handler: handler.handler
+      Runtime: python3.13
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 900
+      MemorySize: 1024
+      Layers:
+        - !Ref SharedPythonLayer
+      Environment:
+        Variables:
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          POSTS_TABLE_NAME: !Ref PostsTable
+          S3_BUCKET_NAME: !Ref ContentBucket
+          BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+          EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
+      Events:
+        BrandOnboardingComplete:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref ExpertaEventBus
+            Pattern:
+              source:
+                - experta.onboarding
+              detail-type:
+                - BrandOnboardingComplete
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: ContentGenerator
+
+  # Auto Publisher Lambda
+  AutoPublisherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-auto-publisher-${Environment}'
+      CodeUri: functions/auto-publisher/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          POSTS_TABLE_NAME: !Ref PostsTable
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          AUTOMATION_LOGS_TABLE_NAME: !Ref AutomationLogsTable
+          ENCRYPTION_KEY_ID: !Ref CredentialEncryptionKey
+          SNS_TOPIC_ARN: !Ref FailureNotificationTopic
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: AutoPublisher
+
+  # Chat Handler Lambda
+  ChatHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-chat-handler-${Environment}'
+      CodeUri: functions/chat-handler/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 29
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          POSTS_TABLE_NAME: !Ref PostsTable
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+          S3_BUCKET_NAME: !Ref ContentBucket
+          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+      Events:
+        ChatMessage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /chat
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ChatHistory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /chat/history
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ChatGenerateImage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /chat/generate-image
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: ChatHandler
+
+  # Trend Scraper Lambda
+  TrendScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-trend-scraper-${Environment}'
+      CodeUri: functions/trend-scraper/
+      Handler: handler.handler
+      Runtime: python3.13
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Layers:
+        - !Ref SharedPythonLayer
+      Environment:
+        Variables:
+          TRENDS_TABLE_NAME: !Ref TrendsTable
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 2 * * ? *)
+            Description: Daily trend scraping at 2 AM UTC
+            Enabled: true
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: TrendScraper
+
+  # Posts API Lambda
+  PostsApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-posts-api-${Environment}'
+      CodeUri: functions/posts-api/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          POSTS_TABLE_NAME: !Ref PostsTable
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          S3_BUCKET_NAME: !Ref ContentBucket
+          BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+          EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
+      Events:
+        GetPosts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /posts
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        GetPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /posts/{post_id}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        UpdatePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /posts/{post_id}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+        DeletePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /posts/{post_id}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        RegeneratePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /posts/{post_id}/regenerate
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: PostsApi
+
+  # Admin Settings Lambda
+  AdminSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-admin-settings-${Environment}'
+      CodeUri: functions/admin-settings/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          PLATFORM_CREDENTIALS_TABLE: !Ref PlatformCredentialsTable
+      Events:
+        SaveSettings:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /admin/settings
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        GetSettings:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /admin/settings
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: AdminSettings
+
+  # Delete Account Lambda
+  DeleteAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-delete-account-${Environment}'
+      CodeUri: functions/delete-account/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+      Events:
+        DeleteAccount:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /account
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: DeleteAccount
+
+  # OAuth Handler Lambda (Phase 2)
+  OAuthHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-oauth-handler-${Environment}'
+      CodeUri: functions/oauth-handler/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          BRANDS_TABLE_NAME: !Ref BrandsTable
+          OAUTH_CONNECTIONS_TABLE_NAME: !Ref OAuthConnectionsTable
+          PLATFORM_CREDENTIALS_TABLE_NAME: !Ref PlatformCredentialsTable
+          ENVIRONMENT: !Ref Environment
+      Events:
+        AuthorizeOAuth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /oauth/authorize/{platform}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        OAuthCallback:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /oauth/callback/{platform}
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        RefreshToken:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /oauth/refresh/{platform}
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        DisconnectOAuth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /oauth/disconnect/{platform}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        GetConnections:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ExpertaApi
+            Path: /connections/{brand_id}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: OAuthHandler
+
+  # ==================== CloudWatch Log Groups ====================
+  OnboardingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-onboarding-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  ContentGeneratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-content-generator-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  AutoPublisherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-auto-publisher-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  ChatHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-chat-handler-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  TrendScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-trend-scraper-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  PostsApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-posts-api-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  AdminSettingsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-admin-settings-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  DeleteAccountLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-delete-account-${Environment}'
+      RetentionInDays: 90
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  OAuthHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-oauth-handler-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${AWS::StackName}-api-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  # ==================== CloudWatch Alarms ====================
+  
+  # Lambda Error Alarms
+  OnboardingErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-onboarding-errors-${Environment}'
+      AlarmDescription: Alert when Onboarding Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref OnboardingFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  ContentGeneratorErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-content-generator-errors-${Environment}'
+      AlarmDescription: Alert when Content Generator Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ContentGeneratorFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  AutoPublisherErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-auto-publisher-errors-${Environment}'
+      AlarmDescription: Alert when Auto Publisher Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AutoPublisherFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  ChatHandlerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-chat-handler-errors-${Environment}'
+      AlarmDescription: Alert when Chat Handler Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ChatHandlerFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  PostsApiErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-posts-api-errors-${Environment}'
+      AlarmDescription: Alert when Posts API Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PostsApiFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  TrendScraperErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-trend-scraper-errors-${Environment}'
+      AlarmDescription: Alert when Trend Scraper Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TrendScraperFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  OAuthHandlerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-oauth-handler-errors-${Environment}'
+      AlarmDescription: Alert when OAuth Handler Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref OAuthHandlerFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  # Lambda Throttle Alarms
+  OnboardingThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-onboarding-throttles-${Environment}'
+      AlarmDescription: Alert when Onboarding Lambda is throttled
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref OnboardingFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  # API Gateway Alarms
+  ApiGateway5xxErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-5xx-errors-${Environment}'
+      AlarmDescription: Alert when API Gateway has 5xx errors
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'experta-api-${Environment}'
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  ApiGateway4xxErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-4xx-errors-${Environment}'
+      AlarmDescription: Alert when API Gateway has high 4xx error rate
+      MetricName: 4XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'experta-api-${Environment}'
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  ApiGatewayLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-high-latency-${Environment}'
+      AlarmDescription: Alert when API Gateway latency is high
+      MetricName: Latency
+      Namespace: AWS/ApiGateway
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'experta-api-${Environment}'
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  # DynamoDB Alarms
+  BrandsTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-brands-table-throttles-${Environment}'
+      AlarmDescription: Alert when Brands table is throttled
+      MetricName: UserErrors
+      Namespace: AWS/DynamoDB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref BrandsTable
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  PostsTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-posts-table-throttles-${Environment}'
+      AlarmDescription: Alert when Posts table is throttled
+      MetricName: UserErrors
+      Namespace: AWS/DynamoDB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref PostsTable
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  # EventBridge Alarms
+  EventBridgeFailedInvocationsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-eventbridge-failed-invocations-${Environment}'
+      AlarmDescription: Alert when EventBridge has failed invocations
+      MetricName: FailedInvocations
+      Namespace: AWS/Events
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: EventBusName
+          Value: !Ref ExpertaEventBus
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  # ==================== CloudWatch Dashboard ====================
+  ExpertaDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'Experta-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", {"stat": "Sum", "label": "Onboarding"}],
+                  ["...", {"stat": "Sum", "label": "Content Generator"}],
+                  ["...", {"stat": "Sum", "label": "Auto Publisher"}],
+                  ["...", {"stat": "Sum", "label": "Chat Handler"}],
+                  ["...", {"stat": "Sum", "label": "Posts API"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Errors", {"stat": "Sum", "label": "Onboarding"}],
+                  ["...", {"stat": "Sum", "label": "Content Generator"}],
+                  ["...", {"stat": "Sum", "label": "Auto Publisher"}],
+                  ["...", {"stat": "Sum", "label": "Chat Handler"}],
+                  ["...", {"stat": "Sum", "label": "Posts API"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Lambda Errors",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average", "label": "Onboarding"}],
+                  ["...", {"stat": "Average", "label": "Content Generator"}],
+                  ["...", {"stat": "Average", "label": "Auto Publisher"}],
+                  ["...", {"stat": "Average", "label": "Chat Handler"}],
+                  ["...", {"stat": "Average", "label": "Posts API"}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Lambda Duration (ms)",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ApiGateway", "Count", {"stat": "Sum"}],
+                  [".", "4XXError", {"stat": "Sum"}],
+                  [".", "5XXError", {"stat": "Sum"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "API Gateway Requests",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", {"stat": "Sum", "label": "Brands Table"}],
+                  ["...", {"stat": "Sum", "label": "Posts Table"}],
+                  [".", "ConsumedWriteCapacityUnits", {"stat": "Sum", "label": "Brands Table"}],
+                  ["...", {"stat": "Sum", "label": "Posts Table"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Capacity Units",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Events", "Invocations", {"stat": "Sum"}],
+                  [".", "FailedInvocations", {"stat": "Sum"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "EventBridge Invocations",
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+
+Outputs:
+  # API Gateway
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ExpertaApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref ExpertaApi
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiId'
+
+  # Cognito
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  # DynamoDB Tables
+  BrandsTableName:
+    Description: Brands DynamoDB Table Name
+    Value: !Ref BrandsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-BrandsTable'
+
+  PostsTableName:
+    Description: Posts DynamoDB Table Name
+    Value: !Ref PostsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-PostsTable'
+
+  AutomationLogsTableName:
+    Description: Automation Logs DynamoDB Table Name
+    Value: !Ref AutomationLogsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-AutomationLogsTable'
+
+  TrendsTableName:
+    Description: Trends DynamoDB Table Name
+    Value: !Ref TrendsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TrendsTable'
+
+  OnboardingSessionsTableName:
+    Description: Onboarding Sessions DynamoDB Table Name
+    Value: !Ref OnboardingSessionsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-OnboardingSessionsTable'
+
+  OAuthConnectionsTableName:
+    Description: OAuth Connections DynamoDB Table Name
+    Value: !Ref OAuthConnectionsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-OAuthConnectionsTable'
+
+  PlatformCredentialsTableName:
+    Description: Platform Credentials DynamoDB Table Name
+    Value: !Ref PlatformCredentialsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-PlatformCredentialsTable'
+
+  # S3
+  ContentBucketName:
+    Description: S3 Bucket for Content Storage
+    Value: !Ref ContentBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-ContentBucket'
+
+  # EventBridge
+  EventBusName:
+    Description: EventBridge Event Bus Name
+    Value: !Ref ExpertaEventBus
+    Export:
+      Name: !Sub '${AWS::StackName}-EventBus'
+
+  # KMS
+  EncryptionKeyId:
+    Description: KMS Key ID for Credential Encryption
+    Value: !Ref CredentialEncryptionKey
+    Export:
+      Name: !Sub '${AWS::StackName}-EncryptionKey'
+
+  # SNS
+  FailureTopicArn:
+    Description: SNS Topic ARN for Failure Notifications
+    Value: !Ref FailureNotificationTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-FailureTopic'
+
+  # IAM
+  LambdaExecutionRoleArn:
+    Description: Lambda Execution Role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaRole'
+
+  # Lambda Functions
+  OnboardingFunctionArn:
+    Description: Onboarding Lambda Function ARN
+    Value: !GetAtt OnboardingFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OnboardingFunction'
+
+  OnboardingFunctionName:
+    Description: Onboarding Lambda Function Name
+    Value: !Ref OnboardingFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-OnboardingFunctionName'
+
+  ContentGeneratorFunctionArn:
+    Description: Content Generator Lambda Function ARN
+    Value: !GetAtt ContentGeneratorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ContentGeneratorFunction'
+
+  ContentGeneratorFunctionName:
+    Description: Content Generator Lambda Function Name
+    Value: !Ref ContentGeneratorFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ContentGeneratorFunctionName'
+
+  AutoPublisherFunctionArn:
+    Description: Auto Publisher Lambda Function ARN
+    Value: !GetAtt AutoPublisherFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AutoPublisherFunction'
+
+  AutoPublisherFunctionName:
+    Description: Auto Publisher Lambda Function Name
+    Value: !Ref AutoPublisherFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-AutoPublisherFunctionName'
+
+  ChatHandlerFunctionArn:
+    Description: Chat Handler Lambda Function ARN
+    Value: !GetAtt ChatHandlerFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ChatHandlerFunction'
+
+  ChatHandlerFunctionName:
+    Description: Chat Handler Lambda Function Name
+    Value: !Ref ChatHandlerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ChatHandlerFunctionName'
+
+  TrendScraperFunctionArn:
+    Description: Trend Scraper Lambda Function ARN
+    Value: !GetAtt TrendScraperFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TrendScraperFunction'
+
+  TrendScraperFunctionName:
+    Description: Trend Scraper Lambda Function Name
+    Value: !Ref TrendScraperFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-TrendScraperFunctionName'
+
+  PostsApiFunctionArn:
+    Description: Posts API Lambda Function ARN
+    Value: !GetAtt PostsApiFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-PostsApiFunction'
+
+  PostsApiFunctionName:
+    Description: Posts API Lambda Function Name
+    Value: !Ref PostsApiFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-PostsApiFunctionName'
+
+  OAuthHandlerFunctionArn:
+    Description: OAuth Handler Lambda Function ARN
+    Value: !GetAtt OAuthHandlerFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OAuthHandlerFunction'
+
+  OAuthHandlerFunctionName:
+    Description: OAuth Handler Lambda Function Name
+    Value: !Ref OAuthHandlerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-OAuthHandlerFunctionName'
+
+  # CloudWatch Dashboard
+  DashboardName:
+    Description: CloudWatch Dashboard Name
+    Value: !Ref ExpertaDashboard
+    Export:
+      Name: !Sub '${AWS::StackName}-Dashboard'
+
+  DashboardUrl:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ExpertaDashboard}'
+  # Atualizacao CORS Kevin - Forçar Deploy
+
