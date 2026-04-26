@@ -3,12 +3,14 @@
  * 
  * Manages click detection, hover states, selection, and context menus.
  * Uses PixiJS interaction manager for hit testing.
+ * Enhanced with HighlightEffect for visual feedback.
  * 
- * Requirements: 6.1, 6.2, 6.3
- * Phase 6, Task 31
+ * Requirements: 6.1, 6.2, 6.3, REQ-4.2
+ * Phase 6, Task 31 | Phase 4, Task 4.2
  */
 
 import * as PIXI from 'pixi.js';
+import HighlightEffect from '../effects/HighlightEffect.js';
 
 /**
  * InteractionSystem class - Manages entity interactions
@@ -544,14 +546,10 @@ class InteractionSystem {
       return;
     }
     
-    // Store original tint if not already stored
-    if (spriteComponent.originalTint === undefined) {
-      spriteComponent.originalTint = spriteComponent.tint;
-    }
-    
-    // Apply lighter tint for hover (20% lighter)
     const sprite = spriteComponent.pixiSprite;
-    sprite.tint = this.lightenColor(spriteComponent.originalTint, 0.2);
+    
+    // Use HighlightEffect for glow-based hover effect
+    HighlightEffect.applyHoverEffect(sprite);
   }
   
   /**
@@ -564,11 +562,10 @@ class InteractionSystem {
       return;
     }
     
-    // Restore original tint
-    if (spriteComponent.originalTint !== undefined) {
-      const sprite = spriteComponent.pixiSprite;
-      sprite.tint = spriteComponent.originalTint;
-    }
+    const sprite = spriteComponent.pixiSprite;
+    
+    // Clear highlight effect with animation
+    HighlightEffect.clearEffects(sprite, true);
   }
   
   /**
@@ -581,16 +578,15 @@ class InteractionSystem {
       return;
     }
     
-    // Store original tint if not already stored
-    if (spriteComponent.originalTint === undefined) {
-      spriteComponent.originalTint = spriteComponent.tint;
-    }
-    
-    // Apply brighter tint for selection (40% lighter)
     const sprite = spriteComponent.pixiSprite;
-    sprite.tint = this.lightenColor(spriteComponent.originalTint, 0.4);
     
-    // Add selection indicator (white outline)
+    // Clear any existing effect first
+    HighlightEffect.clearEffects(sprite, false);
+    
+    // Use HighlightEffect for glow-based selection effect
+    HighlightEffect.applySelectionEffect(sprite);
+    
+    // Add selection indicator (white outline) - keep existing functionality
     this.addSelectionIndicator(entity);
   }
   
@@ -604,11 +600,10 @@ class InteractionSystem {
       return;
     }
     
-    // Restore original tint
-    if (spriteComponent.originalTint !== undefined) {
-      const sprite = spriteComponent.pixiSprite;
-      sprite.tint = spriteComponent.originalTint;
-    }
+    const sprite = spriteComponent.pixiSprite;
+    
+    // Clear highlight effect with animation
+    HighlightEffect.clearEffects(sprite, true);
     
     // Remove selection indicator
     this.removeSelectionIndicator(entity);

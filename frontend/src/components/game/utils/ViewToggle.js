@@ -44,6 +44,9 @@ class ViewToggle {
     this.loadTimeout = 10000; // 10 seconds
     this.loadTimer = null;
     
+    // Cache for game support check to avoid multiple WebGL context creations
+    this.gameSupportCache = null;
+    
     // Load saved preferences
     this.loadPreferences();
     
@@ -141,18 +144,36 @@ class ViewToggle {
    * @returns {boolean} True if game view is supported
    */
   checkGameSupport() {
+    // Return cached result if available
+    if (this.gameSupportCache !== null) {
+      return this.gameSupportCache;
+    }
+    
     // Check WebGL support
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     const hasWebGL = !!gl;
     
+    // Clean up the test canvas immediately
+    if (gl) {
+      const loseContext = gl.getExtension('WEBGL_lose_context');
+      if (loseContext) {
+        loseContext.loseContext();
+      }
+    }
+    
     if (!hasWebGL) {
       console.warn('[ViewToggle] WebGL not supported - game view disabled');
       this.currentView = ViewMode.TRADITIONAL;
       this.savePreferences();
+      this.gameSupportCache = false;
       return false;
     }
     
+    // TEMPORARILY DISABLED: Mobile detection
+    // Allow game view on all devices for testing
+    // TODO: Re-enable mobile detection after testing
+    /*
     // Check if mobile phone (not tablet)
     const isMobile = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const isTablet = /iPad|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
@@ -161,9 +182,13 @@ class ViewToggle {
       console.warn('[ViewToggle] Mobile phone detected - game view disabled');
       this.currentView = ViewMode.TRADITIONAL;
       this.savePreferences();
+      this.gameSupportCache = false;
       return false;
     }
+    */
     
+    console.log('[ViewToggle] Game view enabled for all devices (mobile detection disabled)');
+    this.gameSupportCache = true;
     return true;
   }
   

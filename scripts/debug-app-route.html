@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug /app Route - Experta</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #4F46E5;
+            margin-bottom: 10px;
+        }
+        .section {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #4F46E5;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #60A5FA;
+        }
+        .item {
+            background: #333;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .key {
+            color: #10B981;
+            font-weight: bold;
+        }
+        .value {
+            color: #F59E0B;
+        }
+        .error {
+            color: #EF4444;
+        }
+        .success {
+            color: #10B981;
+        }
+        .warning {
+            color: #F59E0B;
+        }
+        button {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #4338CA;
+            transform: translateY(-2px);
+        }
+        button.danger {
+            background: #EF4444;
+        }
+        button.danger:hover {
+            background: #DC2626;
+        }
+        button.success {
+            background: #10B981;
+        }
+        button.success:hover {
+            background: #059669;
+        }
+        #logs {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4F46E5;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug /app Route</h1>
+        <p>Ferramenta de diagnóstico para investigar o problema de redirecionamento</p>
+        
+        <div class="section">
+            <h3>📊 Estado Atual do localStorage</h3>
+            <div id="localStorageState"></div>
+        </div>
+        
+        <div class="section">
+            <h3>🔐 Estado de Autenticação</h3>
+            <div id="authState"></div>
+        </div>
+        
+        <div class="section">
+            <h3>🎮 ViewToggle State</h3>
+            <div id="viewToggleState"></div>
+        </div>
+        
+        <div class="section">
+            <h3>🛠️ Ações</h3>
+            <button onclick="checkAll()">🔄 Atualizar Diagnóstico</button>
+            <button onclick="clearAllGameData()" class="danger">🗑️ Limpar TODOS os Dados do Jogo</button>
+            <button onclick="forceGameView()" class="success">🎮 Forçar Game View</button>
+            <button onclick="testAppRoute()">🧪 Testar /app</button>
+        </div>
+        
+        <div class="section">
+            <h3>📝 Logs de Diagnóstico</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#60A5FA',
+                success: '#10B981',
+                error: '#EF4444',
+                warning: '#F59E0B'
+            };
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.borderLeftColor = colors[type];
+            entry.innerHTML = `<span style="color: #6B7280">[${timestamp}]</span> ${message}`;
+            logsDiv.appendChild(entry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function checkLocalStorage() {
+            const stateDiv = document.getElementById('localStorageState');
+            let html = '';
+            
+            const relevantKeys = [
+                'viewToggle',
+                'gamePreferences',
+                'userPreferences',
+                'cameraPreferences',
+                'skipBrandAssociation',
+                'devMode'
+            ];
+            
+            relevantKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    html += `<div class="item">
+                        <span class="key">${key}:</span>
+                        <span class="value">${value}</span>
+                    </div>`;
+                    log(`Found localStorage key: ${key}`, 'info');
+                }
+            });
+            
+            if (html === '') {
+                html = '<div class="item success">✅ Nenhum dado relevante encontrado no localStorage</div>';
+                log('No relevant localStorage data found', 'success');
+            }
+            
+            stateDiv.innerHTML = html;
+        }
+        
+        function checkAuth() {
+            const authDiv = document.getElementById('authState');
+            let html = '';
+            
+            // Check Amplify auth tokens
+            const amplifyKeys = Object.keys(localStorage).filter(k => 
+                k.includes('CognitoIdentityServiceProvider') || 
+                k.includes('amplify')
+            );
+            
+            if (amplifyKeys.length > 0) {
+                html += '<div class="item success">✅ Tokens de autenticação encontrados</div>';
+                log(`Found ${amplifyKeys.length} auth tokens`, 'success');
+                amplifyKeys.forEach(key => {
+                    log(`Auth key: ${key}`, 'info');
+                });
+            } else {
+                html += '<div class="item error">❌ Nenhum token de autenticação encontrado</div>';
+                log('No auth tokens found - this might be the problem!', 'error');
+            }
+            
+            authDiv.innerHTML = html;
+        }
+        
+        function checkViewToggle() {
+            const viewToggleDiv = document.getElementById('viewToggleState');
+            const viewToggle = localStorage.getItem('viewToggle');
+            
+            if (viewToggle) {
+                try {
+                    const data = JSON.parse(viewToggle);
+                    let html = '<div class="item">';
+                    html += `<div><span class="key">currentView:</span> <span class="${data.currentView === 'traditional' ? 'error' : 'success'}">${data.currentView}</span></div>`;
+                    html += `<div><span class="key">performanceLevel:</span> <span class="value">${data.performanceLevel}</span></div>`;
+                    html += `<div><span class="key">timestamp:</span> <span class="value">${new Date(data.timestamp).toLocaleString()}</span></div>`;
+                    html += '</div>';
+                    
+                    if (data.currentView === 'traditional') {
+                        html += '<div class="item error">⚠️ PROBLEMA ENCONTRADO: currentView está definido como "traditional"</div>';
+                        log('PROBLEM FOUND: currentView is set to "traditional"', 'error');
+                    } else {
+                        html += '<div class="item success">✅ currentView está correto: "game"</div>';
+                        log('currentView is correct: "game"', 'success');
+                    }
+                    
+                    viewToggleDiv.innerHTML = html;
+                } catch (e) {
+                    viewToggleDiv.innerHTML = '<div class="item error">❌ Erro ao parsear viewToggle</div>';
+                    log('Error parsing viewToggle: ' + e.message, 'error');
+                }
+            } else {
+                viewToggleDiv.innerHTML = '<div class="item success">✅ Nenhuma preferência viewToggle salva</div>';
+                log('No viewToggle preference saved', 'success');
+            }
+        }
+        
+        function clearAllGameData() {
+            if (!confirm('Tem certeza que deseja limpar TODOS os dados do jogo? Isso incluirá preferências, cache e configurações.')) {
+                return;
+            }
+            
+            log('Starting to clear all game data...', 'warning');
+            
+            const keysToRemove = [
+                'viewToggle',
+                'gamePreferences',
+                'userPreferences',
+                'cameraPreferences',
+                'skipBrandAssociation',
+                'devMode'
+            ];
+            
+            let removed = 0;
+            keysToRemove.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    removed++;
+                    log(`Removed: ${key}`, 'success');
+                }
+            });
+            
+            log(`Cleared ${removed} items from localStorage`, 'success');
+            alert(`✅ ${removed} itens removidos do localStorage!`);
+            checkAll();
+        }
+        
+        function forceGameView() {
+            log('Forcing game view...', 'info');
+            
+            const viewToggleData = {
+                currentView: 'game',
+                performanceLevel: 'high',
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem('viewToggle', JSON.stringify(viewToggleData));
+            log('Set viewToggle to game mode', 'success');
+            
+            alert('✅ ViewToggle forçado para modo "game"!');
+            checkAll();
+        }
+        
+        function testAppRoute() {
+            log('Testing /app route...', 'info');
+            window.location.href = 'http://localhost:5173/app';
+        }
+        
+        function checkAll() {
+            log('Running full diagnostic...', 'info');
+            checkLocalStorage();
+            checkAuth();
+            checkViewToggle();
+            log('Diagnostic complete', 'success');
+        }
+        
+        // Run on load
+        window.addEventListener('load', () => {
+            log('Debug tool loaded', 'success');
+            checkAll();
+        });
+    </script>
+</body>
+</html>

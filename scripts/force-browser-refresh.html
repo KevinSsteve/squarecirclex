@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forçar Atualização do Navegador</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        .keyboard-shortcut {
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            display: inline-block;
+            margin: 5px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        .warning {
+            background: #f59e0b;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .code {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Forçar Atualização do Navegador</h1>
+        <p class="subtitle">Limpe o cache e force o reload da aplicação</p>
+
+        <div class="warning">
+            ⚠️ <strong>Problema Detectado:</strong> O navegador está usando código JavaScript em cache. 
+            Você precisa forçar uma atualização completa.
+        </div>
+
+        <div class="step">
+            <h3>Método 1: Hard Refresh (Recomendado)</h3>
+            <p>Use o atalho do teclado para forçar o navegador a recarregar todos os arquivos:</p>
+            <div>
+                <span class="keyboard-shortcut">Ctrl + Shift + R</span>
+                <span style="margin: 0 10px;">ou</span>
+                <span class="keyboard-shortcut">Ctrl + F5</span>
+            </div>
+            <p style="margin-top: 15px;"><strong>No Mac:</strong></p>
+            <div>
+                <span class="keyboard-shortcut">Cmd + Shift + R</span>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>Método 2: Limpar Cache Manualmente</h3>
+            <p>Abra as ferramentas de desenvolvedor e limpe o cache:</p>
+            <ol>
+                <li>Pressione <span class="keyboard-shortcut">F12</span> para abrir DevTools</li>
+                <li>Clique com o botão direito no botão de reload</li>
+                <li>Selecione "Limpar cache e recarregar forçadamente"</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>Método 3: Usar os Botões Abaixo</h3>
+            <p>Clique nos botões para executar ações de limpeza:</p>
+            <div class="button-group">
+                <button onclick="clearCacheAndReload()">🔄 Limpar Cache e Recarregar</button>
+                <button onclick="clearServiceWorkers()">🧹 Limpar Service Workers</button>
+                <button onclick="clearAllStorage()">💾 Limpar Todo Storage</button>
+                <button onclick="openDevTools()">🔧 Abrir DevTools</button>
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>Método 4: Reiniciar o Servidor de Desenvolvimento</h3>
+            <p>Execute no terminal:</p>
+            <div class="code">
+cd frontend<br>
+npm run dev
+            </div>
+            <p>Ou use o script PowerShell:</p>
+            <div class="code">
+.\scripts\restart-dev-server.ps1
+            </div>
+        </div>
+
+        <div class="success" id="successMessage">
+            ✅ Cache limpo com sucesso! A página será recarregada em 2 segundos...
+        </div>
+
+        <div class="step">
+            <h3>📋 Checklist de Verificação</h3>
+            <ul>
+                <li>✅ Código atualizado no arquivo (sem setManualLOD)</li>
+                <li>❌ Navegador ainda usando versão antiga em cache</li>
+                <li>🎯 Solução: Forçar hard refresh</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function clearCacheAndReload() {
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                });
+            }
+            
+            // Clear localStorage
+            localStorage.clear();
+            
+            // Clear sessionStorage
+            sessionStorage.clear();
+            
+            // Show success message
+            document.getElementById('successMessage').style.display = 'block';
+            
+            // Reload after 2 seconds
+            setTimeout(function() {
+                window.location.reload(true);
+            }, 2000);
+        }
+
+        function clearServiceWorkers() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                    alert('Service Workers removidos! Recarregue a página.');
+                });
+            } else {
+                alert('Service Workers não suportados neste navegador.');
+            }
+        }
+
+        function clearAllStorage() {
+            // Clear all storage types
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear IndexedDB
+            if (window.indexedDB) {
+                indexedDB.databases().then(databases => {
+                    databases.forEach(db => {
+                        indexedDB.deleteDatabase(db.name);
+                    });
+                });
+            }
+            
+            // Clear cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            alert('Todo o storage foi limpo! Recarregue a página.');
+        }
+
+        function openDevTools() {
+            alert('Pressione F12 para abrir as ferramentas de desenvolvedor.\n\nDepois:\n1. Vá para a aba "Application" ou "Aplicativo"\n2. Clique em "Clear storage" ou "Limpar armazenamento"\n3. Clique em "Clear site data" ou "Limpar dados do site"');
+        }
+
+        // Auto-detect if running from localhost
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('%c🔄 Cache Cleaner Loaded', 'background: #667eea; color: white; padding: 10px; font-size: 16px; border-radius: 5px;');
+            console.log('%cUse clearCacheAndReload() para limpar o cache', 'color: #667eea; font-size: 14px;');
+        }
+    </script>
+</body>
+</html>

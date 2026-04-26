@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear ViewToggle - Experta</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #4F46E5;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #6B7280;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+        .success {
+            background: #D1FAE5;
+            color: #065F46;
+            border: 2px solid #10B981;
+        }
+        .info {
+            background: #DBEAFE;
+            color: #1E40AF;
+            border: 2px solid #3B82F6;
+        }
+        .warning {
+            background: #FEF3C7;
+            color: #92400E;
+            border: 2px solid #F59E0B;
+        }
+        .item {
+            background: #F3F4F6;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .item-key {
+            color: #4F46E5;
+            font-weight: bold;
+        }
+        .item-value {
+            color: #6B7280;
+            margin-left: 10px;
+        }
+        button {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #4338CA;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+        }
+        button.secondary {
+            background: #6B7280;
+        }
+        button.secondary:hover {
+            background: #4B5563;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🎮</div>
+        <h1>Clear ViewToggle Preference</h1>
+        <p class="subtitle">Reset view preference to enable game view</p>
+        
+        <div id="status"></div>
+        <div id="details"></div>
+        
+        <div style="margin-top: 30px;">
+            <button onclick="clearViewToggle()">🗑️ Clear ViewToggle</button>
+            <button onclick="checkStatus()" class="secondary">🔍 Check Status</button>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <button onclick="goToApp()" class="secondary">➡️ Go to /app</button>
+        </div>
+    </div>
+
+    <script>
+        function checkStatus() {
+            const statusDiv = document.getElementById('status');
+            const detailsDiv = document.getElementById('details');
+            
+            const viewToggle = localStorage.getItem('viewToggle');
+            
+            if (viewToggle) {
+                try {
+                    const data = JSON.parse(viewToggle);
+                    statusDiv.innerHTML = '<div class="status warning">⚠️ ViewToggle preference found</div>';
+                    detailsDiv.innerHTML = `
+                        <div class="item">
+                            <span class="item-key">currentView:</span>
+                            <span class="item-value">${data.currentView || 'not set'}</span>
+                        </div>
+                        <div class="item">
+                            <span class="item-key">performanceLevel:</span>
+                            <span class="item-value">${data.performanceLevel || 'not set'}</span>
+                        </div>
+                        <div class="item">
+                            <span class="item-key">timestamp:</span>
+                            <span class="item-value">${data.timestamp ? new Date(data.timestamp).toLocaleString() : 'not set'}</span>
+                        </div>
+                    `;
+                    
+                    if (data.currentView === 'traditional') {
+                        statusDiv.innerHTML += '<div class="status info">ℹ️ This is why you\'re being redirected! The view is set to "traditional".</div>';
+                    }
+                } catch (e) {
+                    statusDiv.innerHTML = '<div class="status warning">⚠️ ViewToggle data is corrupted</div>';
+                    detailsDiv.innerHTML = `<div class="item">${viewToggle}</div>`;
+                }
+            } else {
+                statusDiv.innerHTML = '<div class="status success">✅ No ViewToggle preference found (this is good!)</div>';
+                detailsDiv.innerHTML = '<div class="status info">ℹ️ The game view should work now. Try accessing /app</div>';
+            }
+        }
+        
+        function clearViewToggle() {
+            const statusDiv = document.getElementById('status');
+            const detailsDiv = document.getElementById('details');
+            
+            try {
+                localStorage.removeItem('viewToggle');
+                statusDiv.innerHTML = '<div class="status success">✅ ViewToggle preference cleared successfully!</div>';
+                detailsDiv.innerHTML = '<div class="status info">ℹ️ You can now access the game view at /app</div>';
+                console.log('✅ Cleared: viewToggle');
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="status warning">⚠️ Error clearing ViewToggle: ' + error.message + '</div>';
+                console.error('Error:', error);
+            }
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5173/app';
+        }
+        
+        // Auto-check status on load
+        window.addEventListener('load', checkStatus);
+    </script>
+</body>
+</html>

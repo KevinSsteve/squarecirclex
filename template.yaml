@@ -1061,6 +1061,40 @@ Resources:
         Application: Experta
         Function: OAuthHandler
 
+  # Meta Publisher Lambda (Phase 3)
+  MetaPublisherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-meta-publisher-${Environment}'
+      CodeUri: functions/meta-publisher/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Layers:
+        - !Ref SharedNodejsLayer
+      Environment:
+        Variables:
+          POSTS_TABLE: !Ref PostsTable
+          BRANDS_TABLE: !Ref BrandsTable
+          META_MOCK_MODE: 'true'
+      Events:
+        PostCreated:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref ExpertaEventBus
+            Pattern:
+              source:
+                - experta.posts
+              detail-type:
+                - PostCreated
+                - PostReadyForPublication
+      Tags:
+        Environment: !Ref Environment
+        Application: Experta
+        Function: MetaPublisher
+
   # ==================== CloudWatch Log Groups ====================
   OnboardingLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1154,6 +1188,17 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-oauth-handler-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: Experta
+
+  MetaPublisherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-meta-publisher-${Environment}'
       RetentionInDays: 30
       Tags:
         - Key: Environment
@@ -1304,6 +1349,25 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref OAuthHandlerFunction
+      AlarmActions:
+        - !Ref FailureNotificationTopic
+      TreatMissingData: notBreaching
+
+  MetaPublisherErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-meta-publisher-errors-${Environment}'
+      AlarmDescription: Alert when Meta Publisher Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref MetaPublisherFunction
       AlarmActions:
         - !Ref FailureNotificationTopic
       TreatMissingData: notBreaching
@@ -1765,6 +1829,18 @@ Outputs:
     Value: !Ref OAuthHandlerFunction
     Export:
       Name: !Sub '${AWS::StackName}-OAuthHandlerFunctionName'
+
+  MetaPublisherFunctionArn:
+    Description: Meta Publisher Lambda Function ARN
+    Value: !GetAtt MetaPublisherFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-MetaPublisherFunction'
+
+  MetaPublisherFunctionName:
+    Description: Meta Publisher Lambda Function Name
+    Value: !Ref MetaPublisherFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-MetaPublisherFunctionName'
 
   # CloudWatch Dashboard
   DashboardName:

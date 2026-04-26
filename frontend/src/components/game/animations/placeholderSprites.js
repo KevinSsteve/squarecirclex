@@ -35,30 +35,28 @@ export function generatePlaceholderTextures(app) {
   function createAgentTexture(id, color, variant = 0) {
     const graphics = new PIXI.Graphics();
     
-    // Body (rectangle)
-    graphics.beginFill(color);
-    graphics.drawRect(8, 16, 16, 24);
-    graphics.endFill();
+    // Body (rectangle) - PixiJS v8 API
+    graphics.rect(8, 16, 16, 24);
+    graphics.fill(color);
     
-    // Head (circle)
+    // Head (circle) - PixiJS v8 API
     const headColor = variant % 2 === 0 ? highlightColor : color;
-    graphics.beginFill(headColor);
-    graphics.drawCircle(16, 12, 8);
-    graphics.endFill();
+    graphics.circle(16, 12, 8);
+    graphics.fill(headColor);
     
     // Arms (small rectangles) - vary position slightly per frame
     const armOffset = Math.sin(variant * 0.5) * 2;
-    graphics.beginFill(shadowColor);
-    graphics.drawRect(4, 20 + armOffset, 4, 12);
-    graphics.drawRect(24, 20 - armOffset, 4, 12);
-    graphics.endFill();
+    graphics.rect(4, 20 + armOffset, 4, 12);
+    graphics.fill(shadowColor);
+    graphics.rect(24, 20 - armOffset, 4, 12);
+    graphics.fill(shadowColor);
     
     // Legs (small rectangles) - vary position for walking
     const legOffset = Math.sin(variant * 0.8) * 3;
-    graphics.beginFill(shadowColor);
-    graphics.drawRect(10, 40 + legOffset, 4, 8);
-    graphics.drawRect(18, 40 - legOffset, 4, 8);
-    graphics.endFill();
+    graphics.rect(10, 40 + legOffset, 4, 8);
+    graphics.fill(shadowColor);
+    graphics.rect(18, 40 - legOffset, 4, 8);
+    graphics.fill(shadowColor);
     
     // Generate texture from graphics
     const texture = app.renderer.generateTexture(graphics, {
@@ -117,8 +115,11 @@ export function loadPlaceholderTextures(app) {
   const textures = generatePlaceholderTextures(app);
   
   // Add textures to PixiJS v8 cache using Assets API
+  // Check if texture already exists before adding to avoid warnings
   Object.entries(textures).forEach(([id, texture]) => {
-    PIXI.Assets.cache.set(id, texture);
+    if (!PIXI.Assets.cache.has(id)) {
+      PIXI.Assets.cache.set(id, texture);
+    }
   });
   
   return textures;

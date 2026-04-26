@@ -597,7 +597,8 @@ class TaskWorkflowVisuals {
       const progress = Math.min(1, elapsed / duration);
       
       // Ease out back (bounce)
-      const eased = 1 + (--progress) * progress * (2.70158 * progress + 1.70158);
+      const t = progress - 1;
+      const eased = 1 + t * t * (2.70158 * t + 1.70158);
       
       notification.alpha = progress;
       notification.scale.set(0.5 + eased * 0.5);

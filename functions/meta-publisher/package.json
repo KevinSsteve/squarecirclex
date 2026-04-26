@@ -1,0 +1,37 @@
+{
+  "name": "meta-publisher",
+  "version": "1.0.0",
+  "description": "Meta Publisher Lambda Function - Publishes posts to Facebook and Instagram",
+  "main": "handler.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "meta",
+    "facebook",
+    "instagram",
+    "publisher",
+    "lambda"
+  ],
+  "author": "Experta AI",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "testMatch": [
+      "**/*.test.js"
+    ]
+  }
+}

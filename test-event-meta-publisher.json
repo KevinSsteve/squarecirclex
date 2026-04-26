@@ -1,0 +1,17 @@
+{
+  "version": "0",
+  "id": "test-event-meta-123",
+  "detail-type": "PostCreated",
+  "source": "experta.posts",
+  "account": "123456789012",
+  "time": "2026-04-23T10:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "post_id": "test-post-meta-123",
+    "brand_id": "test-brand-456",
+    "platforms": ["facebook", "instagram"],
+    "image_url": "https://example.com/test-meta-integration.jpg",
+    "caption": "🚀 Test post for Meta integration - Fase 3 Dia 4\n\nTesting Facebook and Instagram publishing with mock mode enabled.\n\n#MetaIntegration #Testing #Phase3"
+  }
+}

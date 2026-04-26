@@ -17,7 +17,8 @@ import viewToggle, { ViewMode } from '../utils/ViewToggle';
 const ViewToggleButton = () => {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState(viewToggle.getCurrentView());
-  const [isGameAvailable, setIsGameAvailable] = useState(viewToggle.isGameViewAvailable());
+  // Cache the game availability check to avoid multiple WebGL context creations
+  const [isGameAvailable] = useState(() => viewToggle.isGameViewAvailable());
   
   useEffect(() => {
     // Listen for view changes

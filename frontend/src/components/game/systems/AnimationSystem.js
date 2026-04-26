@@ -7,9 +7,16 @@
  * - Animation registration and definitions
  * - Animation blending for smooth transitions
  * - Sprite sheet support
+ * - Character sprite animation integration (Phase 3, Task 3.4)
  * 
  * Requirements: 2.6, 3.4, 3.5
  * Phase 3, Task 14
+ * 
+ * Enhanced for Task 3.4:
+ * - Support for variable frame rates per animation
+ * - Animation events (onComplete, onLoop, onFrameChange)
+ * - Smooth animation transitions with blending
+ * - Integration with CharacterSpriteManager
  */
 
 /**
@@ -28,14 +35,31 @@ class AnimationSystem {
     // Animation callbacks (entityId -> callback)
     this.animationCallbacks = new Map();
     
+    // Animation event listeners (entityId -> { onComplete, onLoop, onFrameChange })
+    this.animationEventListeners = new Map();
+    
+    // Animation transitions (entityId -> TransitionState)
+    this.animationTransitions = new Map();
+    
     // Enabled state (for accessibility)
     this.enabled = true;
+    
+    // Default transition duration (milliseconds)
+    this.defaultTransitionDuration = 150;
   }
   
   /**
    * Register an animation definition
    * @param {string} name - Animation name
    * @param {object} definition - Animation definition
+   * @param {Array} definition.frames - Array of frame data
+   * @param {number} [definition.fps] - Frames per second (alternative to duration)
+   * @param {number} [definition.duration] - Total animation duration in ms
+   * @param {boolean} [definition.loop=false] - Whether animation loops
+   * @param {Function} [definition.onComplete] - Callback when animation completes
+   * @param {Function} [definition.onLoop] - Callback when animation loops
+   * @param {Function} [definition.onFrameChange] - Callback when frame changes
+   * @param {number} [definition.priority=0] - Animation priority for transitions
    */
   registerAnimation(name, definition) {
     // Validate definition
@@ -64,7 +88,10 @@ class AnimationSystem {
       frameDuration,
       totalDuration: frameDuration * definition.frames.length,
       loop: definition.loop !== undefined ? definition.loop : false,
-      onComplete: definition.onComplete || null
+      priority: definition.priority || 0,
+      onComplete: definition.onComplete || null,
+      onLoop: definition.onLoop || null,
+      onFrameChange: definition.onFrameChange || null
     });
   }
   
@@ -83,6 +110,13 @@ class AnimationSystem {
    * @param {string} entityId - Entity ID
    * @param {string} animationName - Animation name
    * @param {object} options - Animation options
+   * @param {boolean} [options.loop] - Override loop setting
+   * @param {number} [options.speed=1.0] - Animation speed multiplier
+   * @param {boolean} [options.restart=false] - Force restart if already playing
+   * @param {number} [options.transitionDuration] - Transition duration in ms
+   * @param {Function} [options.onComplete] - Completion callback
+   * @param {Function} [options.onLoop] - Loop callback
+   * @param {Function} [options.onFrameChange] - Frame change callback
    * @returns {boolean} True if animation started
    */
   playAnimation(entityId, animationName, options = {}) {
@@ -104,6 +138,17 @@ class AnimationSystem {
     const currentAnim = this.playingAnimations.get(entityId);
     if (currentAnim && currentAnim.name === animationName && !options.restart) {
       return true; // Already playing
+    }
+    
+    // Handle animation transition if different animation is playing
+    if (currentAnim && currentAnim.name !== animationName) {
+      const transitionDuration = options.transitionDuration !== undefined 
+        ? options.transitionDuration 
+        : this.defaultTransitionDuration;
+      
+      if (transitionDuration > 0) {
+        this.startAnimationTransition(entityId, currentAnim.name, animationName, transitionDuration);
+      }
     }
     
     // Get or create animation component
@@ -133,10 +178,22 @@ class AnimationSystem {
       elapsedTime: 0,
       loop: animComponent.loop,
       speed: animComponent.animationSpeed,
-      paused: false
+      paused: false,
+      priority: animationDef.priority
     });
     
-    // Store callback if provided
+    // Store event listeners
+    const eventListeners = {
+      onComplete: options.onComplete || animationDef.onComplete || null,
+      onLoop: options.onLoop || animationDef.onLoop || null,
+      onFrameChange: options.onFrameChange || animationDef.onFrameChange || null
+    };
+    
+    if (eventListeners.onComplete || eventListeners.onLoop || eventListeners.onFrameChange) {
+      this.animationEventListeners.set(entityId, eventListeners);
+    }
+    
+    // Legacy callback support
     if (options.onComplete) {
       this.animationCallbacks.set(entityId, options.onComplete);
     }
@@ -144,7 +201,147 @@ class AnimationSystem {
     // Update sprite to first frame
     this.updateEntitySprite(entity, animationDef.frames[0]);
     
+    // Fire frame change event for first frame
+    if (eventListeners.onFrameChange) {
+      eventListeners.onFrameChange(entityId, 0, animationDef.frames[0]);
+    }
+    
     return true;
+  }
+  
+  /**
+   * Start animation transition between two animations
+   * @param {string} entityId - Entity ID
+   * @param {string} fromAnimation - Current animation
+   * @param {string} toAnimation - Target animation
+   * @param {number} duration - Transition duration in ms
+   */
+  startAnimationTransition(entityId, fromAnimation, toAnimation, duration) {
+    this.animationTransitions.set(entityId, {
+      fromAnimation,
+      toAnimation,
+      startTime: Date.now(),
+      duration,
+      progress: 0
+    });
+  }
+  
+  /**
+   * Update animation transition
+   * @param {string} entityId - Entity ID
+   * @param {number} deltaTime - Time since last update
+   * @returns {boolean} True if transition is complete
+   */
+  updateAnimationTransition(entityId, deltaTime) {
+    const transition = this.animationTransitions.get(entityId);
+    
+    if (!transition) {
+      return true;
+    }
+    
+    const elapsed = Date.now() - transition.startTime;
+    transition.progress = Math.min(elapsed / transition.duration, 1.0);
+    
+    // Transition complete
+    if (transition.progress >= 1.0) {
+      this.animationTransitions.delete(entityId);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Set animation speed for entity
+   * @param {string} entityId - Entity ID
+   * @param {number} speed - Speed multiplier
+   */
+  setAnimationSpeed(entityId, speed) {
+    const playingAnim = this.playingAnimations.get(entityId);
+    
+    if (playingAnim) {
+      playingAnim.speed = speed;
+      
+      // Update animation component
+      const entity = this.entityRegistry.getEntity(entityId);
+      if (entity) {
+        const animComponent = entity.getComponent('animation');
+        if (animComponent) {
+          animComponent.animationSpeed = speed;
+          entity.addComponent('animation', animComponent);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Get animation speed for entity
+   * @param {string} entityId - Entity ID
+   * @returns {number} Speed multiplier
+   */
+  getAnimationSpeed(entityId) {
+    const playingAnim = this.playingAnimations.get(entityId);
+    return playingAnim ? playingAnim.speed : 1.0;
+  }
+  
+  /**
+   * Set animation frame rate
+   * @param {string} entityId - Entity ID
+   * @param {number} fps - Frames per second
+   */
+  setAnimationFrameRate(entityId, fps) {
+    const playingAnim = this.playingAnimations.get(entityId);
+    
+    if (playingAnim) {
+      const frameDuration = 1000 / fps;
+      playingAnim.definition.frameDuration = frameDuration;
+      playingAnim.definition.totalDuration = frameDuration * playingAnim.definition.frames.length;
+    }
+  }
+  
+  /**
+   * Get current frame index
+   * @param {string} entityId - Entity ID
+   * @returns {number} Current frame index
+   */
+  getCurrentFrame(entityId) {
+    const playingAnim = this.playingAnimations.get(entityId);
+    return playingAnim ? playingAnim.frameIndex : 0;
+  }
+  
+  /**
+   * Set current frame index
+   * @param {string} entityId - Entity ID
+   * @param {number} frameIndex - Frame index to set
+   */
+  setCurrentFrame(entityId, frameIndex) {
+    const playingAnim = this.playingAnimations.get(entityId);
+    
+    if (!playingAnim) {
+      return;
+    }
+    
+    const entity = this.entityRegistry.getEntity(entityId);
+    if (!entity) {
+      return;
+    }
+    
+    // Clamp frame index
+    frameIndex = Math.max(0, Math.min(frameIndex, playingAnim.definition.frames.length - 1));
+    
+    playingAnim.frameIndex = frameIndex;
+    playingAnim.elapsedTime = frameIndex * playingAnim.definition.frameDuration;
+    
+    // Update sprite
+    const frameData = playingAnim.definition.frames[frameIndex];
+    this.updateEntitySprite(entity, frameData);
+    
+    // Update animation component
+    const animComponent = entity.getComponent('animation');
+    if (animComponent) {
+      animComponent.frameIndex = frameIndex;
+      entity.addComponent('animation', animComponent);
+    }
   }
   
   /**
@@ -161,6 +358,8 @@ class AnimationSystem {
     // Remove playing animation
     this.playingAnimations.delete(entityId);
     this.animationCallbacks.delete(entityId);
+    this.animationEventListeners.delete(entityId);
+    this.animationTransitions.delete(entityId);
     
     // Clear animation component
     const entity = this.entityRegistry.getEntity(entityId);
@@ -289,6 +488,11 @@ class AnimationSystem {
       return;
     }
     
+    // Update animation transitions
+    for (const [entityId, transition] of this.animationTransitions.entries()) {
+      this.updateAnimationTransition(entityId, deltaTime);
+    }
+    
     // Update each playing animation
     for (const [entityId, playingAnim] of this.playingAnimations.entries()) {
       if (playingAnim.paused) {
@@ -312,6 +516,7 @@ class AnimationSystem {
       
       // Check if frame changed
       if (newFrameIndex !== playingAnim.frameIndex) {
+        const oldFrameIndex = playingAnim.frameIndex;
         playingAnim.frameIndex = newFrameIndex;
         
         // Check if animation completed
@@ -320,18 +525,30 @@ class AnimationSystem {
             // Loop animation
             playingAnim.frameIndex = 0;
             playingAnim.elapsedTime = 0;
+            
+            // Fire loop event
+            const eventListeners = this.animationEventListeners.get(entityId);
+            if (eventListeners && eventListeners.onLoop) {
+              eventListeners.onLoop(entityId, playingAnim.name);
+            }
           } else {
             // Animation complete
             playingAnim.frameIndex = playingAnim.definition.frames.length - 1;
             
-            // Call completion callback
+            // Fire completion events
+            const eventListeners = this.animationEventListeners.get(entityId);
+            if (eventListeners && eventListeners.onComplete) {
+              eventListeners.onComplete(entityId, playingAnim.name);
+            }
+            
+            // Legacy callback support
             const callback = this.animationCallbacks.get(entityId);
             if (callback) {
               callback(entityId);
               this.animationCallbacks.delete(entityId);
             }
             
-            // Call definition callback
+            // Definition callback
             if (playingAnim.definition.onComplete) {
               playingAnim.definition.onComplete(entityId);
             }
@@ -345,6 +562,17 @@ class AnimationSystem {
         // Update sprite to new frame
         const frameData = playingAnim.definition.frames[playingAnim.frameIndex];
         this.updateEntitySprite(entity, frameData);
+        
+        // Fire frame change event
+        const eventListeners = this.animationEventListeners.get(entityId);
+        if (eventListeners && eventListeners.onFrameChange) {
+          eventListeners.onFrameChange(entityId, playingAnim.frameIndex, frameData);
+        }
+        
+        // Definition frame change callback
+        if (playingAnim.definition.onFrameChange) {
+          playingAnim.definition.onFrameChange(entityId, playingAnim.frameIndex, frameData);
+        }
         
         // Update animation component
         const animComponent = entity.getComponent('animation');
@@ -393,6 +621,8 @@ class AnimationSystem {
     
     this.playingAnimations.clear();
     this.animationCallbacks.clear();
+    this.animationEventListeners.clear();
+    this.animationTransitions.clear();
   }
   
   /**
@@ -403,6 +633,24 @@ class AnimationSystem {
   }
   
   /**
+   * Pause all playing animations
+   */
+  pauseAll() {
+    for (const playingAnim of this.playingAnimations.values()) {
+      playingAnim.paused = true;
+    }
+  }
+  
+  /**
+   * Resume all paused animations
+   */
+  resumeAll() {
+    for (const playingAnim of this.playingAnimations.values()) {
+      playingAnim.paused = false;
+    }
+  }
+  
+  /**
    * Enable animations (for accessibility)
    */
   setEnabled(enabled) {
@@ -410,14 +658,10 @@ class AnimationSystem {
     
     // If disabling, pause all animations
     if (!enabled) {
-      for (const playingAnim of this.playingAnimations.values()) {
-        playingAnim.paused = true;
-      }
+      this.pauseAll();
     } else {
       // If enabling, resume all animations
-      for (const playingAnim of this.playingAnimations.values()) {
-        playingAnim.paused = false;
-      }
+      this.resumeAll();
     }
   }
   
@@ -427,6 +671,70 @@ class AnimationSystem {
    */
   isEnabled() {
     return this.enabled;
+  }
+  
+  /**
+   * Set default transition duration
+   * @param {number} duration - Duration in milliseconds
+   */
+  setDefaultTransitionDuration(duration) {
+    this.defaultTransitionDuration = Math.max(0, duration);
+  }
+  
+  /**
+   * Get default transition duration
+   * @returns {number} Duration in milliseconds
+   */
+  getDefaultTransitionDuration() {
+    return this.defaultTransitionDuration;
+  }
+  
+  /**
+   * Check if entity has active transition
+   * @param {string} entityId - Entity ID
+   * @returns {boolean} True if transition is active
+   */
+  hasActiveTransition(entityId) {
+    return this.animationTransitions.has(entityId);
+  }
+  
+  /**
+   * Get transition progress
+   * @param {string} entityId - Entity ID
+   * @returns {number} Progress from 0 to 1, or 0 if no transition
+   */
+  getTransitionProgress(entityId) {
+    const transition = this.animationTransitions.get(entityId);
+    return transition ? transition.progress : 0;
+  }
+  
+  /**
+   * Get animation statistics
+   * @returns {object} Statistics object
+   */
+  getStatistics() {
+    let totalPlaying = 0;
+    let totalPaused = 0;
+    let totalLooping = 0;
+    
+    for (const playingAnim of this.playingAnimations.values()) {
+      totalPlaying++;
+      if (playingAnim.paused) {
+        totalPaused++;
+      }
+      if (playingAnim.loop) {
+        totalLooping++;
+      }
+    }
+    
+    return {
+      registeredAnimations: this.animations.size,
+      playingAnimations: totalPlaying,
+      pausedAnimations: totalPaused,
+      loopingAnimations: totalLooping,
+      activeTransitions: this.animationTransitions.size,
+      enabled: this.enabled
+    };
   }
 }
 

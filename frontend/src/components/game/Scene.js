@@ -2,10 +2,13 @@ import * as PIXI from 'pixi.js';
 import EntityRegistry from './entities/EntityRegistry.js';
 import { MovementSystem, AnimationSystem, StateSyncSystem, TaskExecutionSystem, InteractionSystem, ParticleSystem, ThemeSystem, CullingSystem, LODSystem, PerformanceMonitor, ErrorRecoverySystem, AccessibilitySystem } from './systems/index.js';
 import SoundSystem from './systems/SoundSystem.js';
+import ShadowSystem from './systems/ShadowSystem.js';
+import LightingSystem from './systems/LightingSystem.js';
 import { TaskWorkflowVisuals } from './visuals/index.js';
 import SpriteBatchOptimizer from './utils/SpriteBatchOptimizer.js';
 import { DebugOverlay } from './debug/index.js';
 import { userPreferences } from './preferences/index.js';
+import DepartmentRenderer from './renderers/DepartmentRenderer.js';
 
 /**
  * Scene Class - Manages the game world
@@ -85,6 +88,22 @@ class Scene {
     // Create rendering layers
     this.layers = this.createLayers();
     
+    // Shadow system (Phase 1, Task 1.5) - Must be initialized AFTER layers are created
+    this.shadowSystem = new ShadowSystem(this);
+    
+    // Lighting system (Phase 4, Task 4.1) - Must be initialized AFTER layers are created
+    this.lightingSystem = new LightingSystem(this);
+    
+    // Department renderer (Phase 2, Task 2.4) - Must be initialized AFTER layers are created
+    this.departmentRenderer = new DepartmentRenderer(this, {
+      offsetX: 400,
+      offsetY: 200,
+      enableFloorTiles: true,
+      enableCarpets: true,
+      enableWalls: true,
+      enableFurniture: true
+    });
+    
     // Debug overlay (Phase 10, Task 62) - Must be initialized AFTER layers are created
     this.debugOverlay = new DebugOverlay(this, this.app);
     
@@ -114,7 +133,7 @@ class Scene {
       administration: { gridX: 15, gridY: 2, gridWidth: 4, gridHeight: 11 }
     };
     
-    // Camera state
+    // Camera state (Enhanced for Task 4.5)
     this.camera = {
       x: 0,
       y: 0,
@@ -122,7 +141,16 @@ class Scene {
       targetX: 0,
       targetY: 0,
       targetZoom: 1.0,
-      smoothing: 0.1 // Camera smoothing factor (0-1)
+      smoothing: 0.1, // Camera smoothing factor (0-1)
+      // Camera shake state (Task 4.5)
+      shakeX: 0,
+      shakeY: 0,
+      shakeIntensity: 0,
+      shakeDuration: 0,
+      shakeElapsed: 0,
+      // Easing state (Task 4.5)
+      easingMode: 'smooth', // 'smooth' | 'snap' | 'elastic'
+      transitionProgress: 1.0 // 0-1, used for custom easing curves
     };
     
     // World bounds
@@ -147,10 +175,15 @@ class Scene {
       // Use saved camera position
       this.setCameraPosition(cameraPrefs.x, cameraPrefs.y);
     } else {
-      // Use default: center of world
+      // Use default: center on the office layout
+      // Office layout is drawn with offset (400, 200) and spans approximately 800x600
+      // Center the camera on the middle of the office layout
+      const officeLayoutCenterX = 400 + 400; // offset + half of layout width
+      const officeLayoutCenterY = 200 + 300; // offset + half of layout height
+      
       this.setCameraPosition(
-        this.bounds.maxX / 2 - this.viewport.width / 2,
-        this.bounds.maxY / 2 - this.viewport.height / 2
+        officeLayoutCenterX - this.viewport.width / 2,
+        officeLayoutCenterY - this.viewport.height / 2
       );
     }
     
@@ -168,35 +201,150 @@ class Scene {
   
   /**
    * Create rendering layers for proper depth sorting
-   * Layers are rendered in order: background → entities → foreground → UI
+   * Enhanced for 3D isometric visual upgrade (Task 1.4)
+   * 
+   * Layers are rendered in order with z-index:
+   * - floor (0): Floor tiles and carpets
+   * - floor_decorations (5): Rugs, floor markings
+   * - walls_back (8): Back walls
+   * - shadows (15): Shadow sprites
+   * - furniture_back (20): Furniture behind agents
+   * - agents (30): Character sprites (with Y-sorting)
+   * - furniture_front (40): Furniture in front of agents
+   * - walls_front (45): Front walls, windows
+   * - effects (50): Particles and visual effects
+   * - ui_world (60): World-space UI elements
    */
   createLayers() {
     const layers = {
-      background: new PIXI.Container(),
+      // New layers for 3D isometric rendering
+      floor: new PIXI.Container(),
+      floor_decorations: new PIXI.Container(),
+      walls_back: new PIXI.Container(),
+      shadows: new PIXI.Container(),
+      
+      // Existing layers (maintained for backward compatibility)
+      background: new PIXI.Container(), // Alias for floor
       furniture_back: new PIXI.Container(),
       agents: new PIXI.Container(),
       furniture_front: new PIXI.Container(),
+      walls_front: new PIXI.Container(),
       effects: new PIXI.Container(),
       ui_world: new PIXI.Container()
     };
     
-    // Add layers to scene in correct order
-    this.container.addChild(layers.background);
+    // Add layers to scene in correct z-index order
+    this.container.addChild(layers.floor);
+    this.container.addChild(layers.floor_decorations);
+    this.container.addChild(layers.walls_back);
+    this.container.addChild(layers.shadows);
     this.container.addChild(layers.furniture_back);
     this.container.addChild(layers.agents);
     this.container.addChild(layers.furniture_front);
+    this.container.addChild(layers.walls_front);
     this.container.addChild(layers.effects);
     this.container.addChild(layers.ui_world);
     
-    // Set layer z-indices for clarity
+    // Set layer z-indices for proper depth sorting
+    layers.floor.zIndex = 0;
+    layers.floor_decorations.zIndex = 5;
+    layers.walls_back.zIndex = 8;
+    layers.shadows.zIndex = 15;
+    layers.furniture_back.zIndex = 20;
+    layers.agents.zIndex = 30;
+    layers.furniture_front.zIndex = 40;
+    layers.walls_front.zIndex = 45;
+    layers.effects.zIndex = 50;
+    layers.ui_world.zIndex = 60;
+    
+    // Alias background to floor for backward compatibility
     layers.background.zIndex = 0;
-    layers.furniture_back.zIndex = 10;
-    layers.agents.zIndex = 20;
-    layers.furniture_front.zIndex = 30;
-    layers.effects.zIndex = 40;
-    layers.ui_world.zIndex = 50;
+    
+    // Enable Y-sorting for agents layer (isometric depth sorting)
+    layers.agents.sortableChildren = true;
+    
+    // Enable Y-sorting for furniture layers (for proper depth with agents)
+    layers.furniture_back.sortableChildren = true;
+    layers.furniture_front.sortableChildren = true;
+    
+    // Enable sorting for shadows (follow entity depth)
+    layers.shadows.sortableChildren = true;
     
     return layers;
+  }
+  
+  /**
+   * Sort sprites by depth for isometric rendering
+   * Uses Y-sorting within layers for proper depth perception
+   * 
+   * Sorting algorithm:
+   * 1. Primary sort: layer z-index (handled by layer order)
+   * 2. Secondary sort: Y position (isometric depth)
+   * 3. Tertiary sort: X position (for same Y)
+   * 
+   * @param {PIXI.DisplayObject} a - First sprite
+   * @param {PIXI.DisplayObject} b - Second sprite
+   * @returns {number} Sort order (-1, 0, 1)
+   */
+  sortByDepth(a, b) {
+    // Primary sort: Y position (isometric depth)
+    // Objects with higher Y are "closer" to camera
+    if (a.y !== b.y) {
+      return a.y - b.y;
+    }
+    
+    // Secondary sort: X position (for same Y)
+    // Objects with higher X are slightly "closer" in isometric view
+    if (a.x !== b.x) {
+      return a.x - b.x;
+    }
+    
+    // Tertiary sort: zIndex if set
+    const aZIndex = a.zIndex !== undefined ? a.zIndex : 0;
+    const bZIndex = b.zIndex !== undefined ? b.zIndex : 0;
+    return aZIndex - bZIndex;
+  }
+  
+  /**
+   * Update Y-sorting for all sortable layers
+   * Called automatically during update loop
+   * Only sorts when objects have moved
+   */
+  updateDepthSorting() {
+    // Sort agents layer (most important for character depth)
+    if (this.layers.agents.sortableChildren) {
+      this.layers.agents.children.forEach(child => {
+        if (child.zIndex === undefined) {
+          child.zIndex = child.y;
+        }
+      });
+    }
+    
+    // Sort furniture layers
+    if (this.layers.furniture_back.sortableChildren) {
+      this.layers.furniture_back.children.forEach(child => {
+        if (child.zIndex === undefined) {
+          child.zIndex = child.y;
+        }
+      });
+    }
+    
+    if (this.layers.furniture_front.sortableChildren) {
+      this.layers.furniture_front.children.forEach(child => {
+        if (child.zIndex === undefined) {
+          child.zIndex = child.y;
+        }
+      });
+    }
+    
+    // Sort shadows layer
+    if (this.layers.shadows.sortableChildren) {
+      this.layers.shadows.children.forEach(child => {
+        if (child.zIndex === undefined) {
+          child.zIndex = child.y;
+        }
+      });
+    }
   }
   
   /**
@@ -280,14 +428,23 @@ class Scene {
   
   /**
    * Focus camera on a specific point in world coordinates
+   * Enhanced with easing modes (Task 4.5)
    * @param {number} x - World X coordinate
    * @param {number} y - World Y coordinate
    * @param {number} zoom - Optional zoom level
+   * @param {string} easingMode - Easing mode: 'smooth' | 'snap' | 'elastic'
    */
-  focusOn(x, y, zoom = null) {
-    // Center the point in viewport
-    const targetX = x - (this.viewport.width / 2) / this.camera.zoom;
-    const targetY = y - (this.viewport.height / 2) / this.camera.zoom;
+  focusOn(x, y, zoom = null, easingMode = 'smooth') {
+    // If zoom is changing, we need to account for it when centering
+    const currentZoom = zoom !== null ? zoom : this.camera.zoom;
+    
+    // Center the point in viewport, accounting for zoom
+    const targetX = x - (this.viewport.width / 2) / currentZoom;
+    const targetY = y - (this.viewport.height / 2) / currentZoom;
+    
+    // Set easing mode and reset transition progress
+    this.camera.easingMode = easingMode;
+    this.camera.transitionProgress = 0.0;
     
     this.moveCameraTo(targetX, targetY);
     
@@ -297,12 +454,88 @@ class Scene {
   }
   
   /**
+   * Zoom to department with smooth transition (Task 4.5)
+   * @param {string} departmentId - Department ID
+   * @param {number} zoom - Target zoom level (default: 1.5)
+   */
+  zoomToDepartment(departmentId, zoom = 1.5) {
+    const dept = this.departments[departmentId];
+    if (!dept) {
+      console.warn(`Department not found: ${departmentId}`);
+      return;
+    }
+    
+    // Calculate center of department in grid coordinates
+    const centerGridX = dept.gridX + dept.gridWidth / 2;
+    const centerGridY = dept.gridY + dept.gridHeight / 2;
+    
+    // Convert to isometric coordinates
+    const GRID_SIZE = 64;
+    const ISO_RATIO = 2;
+    const offsetX = 400;
+    const offsetY = 200;
+    
+    const isoX = (centerGridX - centerGridY) * (GRID_SIZE / ISO_RATIO);
+    const isoY = (centerGridX + centerGridY) * (GRID_SIZE / (ISO_RATIO * 2));
+    
+    const worldX = isoX + offsetX;
+    const worldY = isoY + offsetY;
+    
+    // Focus camera on department center with elastic easing
+    this.focusOn(worldX, worldY, zoom, 'elastic');
+  }
+  
+  /**
+   * Trigger camera shake effect (Task 4.5)
+   * @param {number} intensity - Shake intensity (pixels)
+   * @param {number} duration - Shake duration (milliseconds)
+   */
+  shakeCamera(intensity = 10, duration = 300) {
+    this.camera.shakeIntensity = intensity;
+    this.camera.shakeDuration = duration;
+    this.camera.shakeElapsed = 0;
+  }
+  
+  /**
+   * Apply easing curve to camera movement (Task 4.5)
+   * @param {number} t - Progress (0-1)
+   * @param {string} mode - Easing mode
+   * @returns {number} Eased value (0-1)
+   */
+  applyCameraEasing(t, mode) {
+    switch (mode) {
+      case 'snap':
+        // Instant snap (no easing)
+        return 1.0;
+        
+      case 'elastic':
+        // Elastic easing (overshoot and bounce back)
+        if (t === 0 || t === 1) return t;
+        const p = 0.3;
+        const s = p / 4;
+        return Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / p) + 1;
+        
+      case 'smooth':
+      default:
+        // Smooth cubic easing (ease-in-out)
+        return t < 0.5
+          ? 4 * t * t * t
+          : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+  }
+  
+  /**
    * Reset camera to default overview position
    */
   resetCamera() {
+    // Center on the office layout
+    // Office layout is drawn with offset (400, 200) and spans approximately 800x600
+    const officeLayoutCenterX = 400 + 400; // offset + half of layout width
+    const officeLayoutCenterY = 200 + 300; // offset + half of layout height
+    
     this.moveCameraTo(
-      this.bounds.maxX / 2 - this.viewport.width / 2,
-      this.bounds.maxY / 2 - this.viewport.height / 2
+      officeLayoutCenterX - this.viewport.width / 2,
+      officeLayoutCenterY - this.viewport.height / 2
     );
     this.zoomCameraTo(1.0);
     
@@ -530,33 +763,12 @@ class Scene {
   
   /**
    * Focus camera on a department by ID
+   * Enhanced to use zoomToDepartment (Task 4.5)
    * @param {string} departmentId - Department ID
    */
   focusOnDepartmentById(departmentId) {
-    const dept = this.departments[departmentId];
-    if (!dept) {
-      console.warn(`Department not found: ${departmentId}`);
-      return;
-    }
-    
-    // Calculate center of department in grid coordinates
-    const centerGridX = dept.gridX + dept.gridWidth / 2;
-    const centerGridY = dept.gridY + dept.gridHeight / 2;
-    
-    // Convert to isometric coordinates
-    const GRID_SIZE = 64;
-    const ISO_RATIO = 2;
-    const offsetX = 400;
-    const offsetY = 200;
-    
-    const isoX = (centerGridX - centerGridY) * (GRID_SIZE / ISO_RATIO);
-    const isoY = (centerGridX + centerGridY) * (GRID_SIZE / (ISO_RATIO * 2));
-    
-    const worldX = isoX + offsetX;
-    const worldY = isoY + offsetY;
-    
-    // Focus camera on department center
-    this.focusOn(worldX, worldY, 1.2);
+    // Use the new zoomToDepartment method with elastic easing
+    this.zoomToDepartment(departmentId, 1.5);
   }
   
   /**
@@ -581,41 +793,101 @@ class Scene {
   
   /**
    * Update camera transform (apply position and zoom to scene)
+   * Enhanced with camera shake (Task 4.5)
    */
   updateCameraTransform() {
-    this.container.x = -this.camera.x * this.camera.zoom;
-    this.container.y = -this.camera.y * this.camera.zoom;
+    // Apply camera position with shake offset
+    this.container.x = -(this.camera.x + this.camera.shakeX) * this.camera.zoom;
+    this.container.y = -(this.camera.y + this.camera.shakeY) * this.camera.zoom;
     this.container.scale.set(this.camera.zoom);
   }
   
   /**
    * Update scene (called every frame)
    * Handles smooth camera transitions, entity updates, and movement system
+   * Enhanced with camera shake and improved easing (Task 4.5)
    * @param {number} deltaTime - Time since last frame in milliseconds
    */
   update(deltaTime) {
     // Start performance measurement
     this.performanceMonitor.startUpdateMeasurement();
     
-    // Smooth camera position
+    // Update camera shake (Task 4.5)
+    if (this.camera.shakeDuration > 0) {
+      this.camera.shakeElapsed += deltaTime;
+      
+      if (this.camera.shakeElapsed < this.camera.shakeDuration) {
+        // Calculate shake decay (exponential falloff)
+        const progress = this.camera.shakeElapsed / this.camera.shakeDuration;
+        const decay = 1 - progress;
+        
+        // Random shake offset with decay
+        const angle = Math.random() * Math.PI * 2;
+        const magnitude = this.camera.shakeIntensity * decay;
+        this.camera.shakeX = Math.cos(angle) * magnitude;
+        this.camera.shakeY = Math.sin(angle) * magnitude;
+      } else {
+        // Shake complete
+        this.camera.shakeX = 0;
+        this.camera.shakeY = 0;
+        this.camera.shakeDuration = 0;
+        this.camera.shakeElapsed = 0;
+      }
+    }
+    
+    // Smooth camera position with enhanced easing (Task 4.5)
     const positionChanged = 
       Math.abs(this.camera.x - this.camera.targetX) > 0.1 ||
       Math.abs(this.camera.y - this.camera.targetY) > 0.1;
     
     if (positionChanged) {
-      this.camera.x += (this.camera.targetX - this.camera.x) * this.camera.smoothing;
-      this.camera.y += (this.camera.targetY - this.camera.y) * this.camera.smoothing;
+      // Update transition progress
+      this.camera.transitionProgress = Math.min(1.0, this.camera.transitionProgress + this.camera.smoothing);
+      
+      // Apply easing curve
+      const easedProgress = this.applyCameraEasing(this.camera.transitionProgress, this.camera.easingMode);
+      
+      // Interpolate position
+      const startX = this.camera.x;
+      const startY = this.camera.y;
+      const deltaX = this.camera.targetX - startX;
+      const deltaY = this.camera.targetY - startY;
+      
+      this.camera.x = startX + deltaX * easedProgress;
+      this.camera.y = startY + deltaY * easedProgress;
+      
+      // Reset transition progress when complete
+      if (this.camera.transitionProgress >= 1.0) {
+        this.camera.transitionProgress = 1.0;
+        this.camera.easingMode = 'smooth'; // Reset to default
+      }
     }
     
-    // Smooth camera zoom
+    // Smooth camera zoom with enhanced easing (Task 4.5)
     const zoomChanged = Math.abs(this.camera.zoom - this.camera.targetZoom) > 0.01;
     
     if (zoomChanged) {
-      this.camera.zoom += (this.camera.targetZoom - this.camera.zoom) * this.camera.smoothing;
+      // Update transition progress for zoom
+      this.camera.transitionProgress = Math.min(1.0, this.camera.transitionProgress + this.camera.smoothing);
+      
+      // Apply easing curve
+      const easedProgress = this.applyCameraEasing(this.camera.transitionProgress, this.camera.easingMode);
+      
+      // Interpolate zoom
+      const startZoom = this.camera.zoom;
+      const deltaZoom = this.camera.targetZoom - startZoom;
+      
+      this.camera.zoom = startZoom + deltaZoom * easedProgress;
+      
+      // Reset transition progress when complete
+      if (this.camera.transitionProgress >= 1.0) {
+        this.camera.transitionProgress = 1.0;
+        this.camera.easingMode = 'smooth'; // Reset to default
+      }
     }
     
     // Update transform if camera changed
-    if (positionChanged || zoomChanged) {
+    if (positionChanged || zoomChanged || this.camera.shakeDuration > 0) {
       this.updateCameraTransform();
     }
     
@@ -627,6 +899,15 @@ class Scene {
     
     // Update animation system (Phase 3)
     this.animationSystem.update(deltaTime);
+    
+    // Update depth sorting for isometric rendering (Task 1.4)
+    this.updateDepthSorting();
+    
+    // Update shadow system (Phase 1, Task 1.5)
+    this.shadowSystem.update();
+    
+    // Update lighting system (Phase 4, Task 4.1)
+    this.lightingSystem.update(deltaTime);
     
     // Update particle system (Phase 8)
     this.particleSystem.update(deltaTime);
@@ -880,6 +1161,22 @@ class Scene {
   }
   
   /**
+   * Get shadow system
+   * @returns {ShadowSystem} The shadow system
+   */
+  getShadowSystem() {
+    return this.shadowSystem;
+  }
+  
+  /**
+   * Get department renderer
+   * @returns {DepartmentRenderer} The department renderer
+   */
+  getDepartmentRenderer() {
+    return this.departmentRenderer;
+  }
+  
+  /**
    * Destroy the scene and cleanup resources
    */
   destroy() {
@@ -922,6 +1219,21 @@ class Scene {
     // Destroy sound system
     if (this.soundSystem) {
       this.soundSystem.destroy();
+    }
+    
+    // Destroy shadow system
+    if (this.shadowSystem) {
+      this.shadowSystem.destroy();
+    }
+    
+    // Destroy lighting system
+    if (this.lightingSystem) {
+      this.lightingSystem.destroy();
+    }
+    
+    // Destroy department renderer
+    if (this.departmentRenderer) {
+      this.departmentRenderer.destroy();
     }
     
     // Clear task workflow visuals

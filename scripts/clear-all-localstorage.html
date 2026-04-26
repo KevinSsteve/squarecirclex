@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear All LocalStorage</title>
+</head>
+<body>
+    <h1>Clear All LocalStorage</h1>
+    <button onclick="clearAll()">Clear Everything</button>
+    <div id="result"></div>
+    
+    <script>
+        function clearAll() {
+            // Clear all localStorage
+            localStorage.clear();
+            
+            // Clear all sessionStorage
+            sessionStorage.clear();
+            
+            // Show result
+            document.getElementById('result').innerHTML = '<p style="color: green;">✓ All storage cleared!</p><p>Please close this tab and try accessing /app again.</p>';
+        }
+        
+        // Auto-clear on load
+        window.onload = function() {
+            clearAll();
+        };
+    </script>
+</body>
+</html>

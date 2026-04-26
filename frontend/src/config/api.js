@@ -44,10 +44,8 @@ apiClient.interceptors.response.use(
       // Server responded with error status
       const { status, data } = error.response;
       
-      if (status === 401 || status === 403) {
-        // Unauthorized - redirect to login
-        window.location.href = '/login';
-      }
+      // Note: Removed automatic redirect to /login for 401/403
+      // Components should handle authentication errors themselves
       
       // Return structured error
       return Promise.reject({

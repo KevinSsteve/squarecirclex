@@ -6,6 +6,12 @@
  * 
  * Requirements: 2.1, 2.2, 2.4
  * Phase 2, Task 9
+ * 
+ * Enhanced with 3D character sprites (Phase 3, Task 3.3):
+ * - Character sprite rendering with 8 directions
+ * - Direction-based sprite selection
+ * - Smooth direction changes with DirectionSmoother
+ * - Animation state management
  */
 
 import Entity from './Entity.js';
@@ -16,6 +22,8 @@ import {
   createTaskComponent,
   createInteractionComponent
 } from './components/index.js';
+import { getCharacterSpriteManager, AnimationState as SpriteAnimationState } from '../sprites/CharacterSpriteManager.js';
+import { DirectionSmoother, Direction } from '../utils/DirectionUtils.js';
 
 /**
  * Agent types corresponding to Lambda functions
@@ -149,6 +157,23 @@ class AgentEntity extends Entity {
       averageTaskDuration: 0,
       successRate: 1.0
     };
+    
+    // Character sprite management (Phase 3, Task 3.3)
+    this.characterType = 'agent'; // Default character type for sprites
+    this.currentDirection = Direction.SOUTH; // Default facing direction
+    this.currentSpriteAnimation = SpriteAnimationState.IDLE; // Current sprite animation
+    this.spriteFrameIndex = 0; // Current frame in animation
+    this.spriteFrameTime = 0; // Time accumulator for frame updates
+    
+    // Direction smoother for smooth direction changes (Phase 3, Task 3.2)
+    this.directionSmoother = new DirectionSmoother({
+      velocityThreshold: 10,      // Minimum velocity to change direction
+      directionHoldTime: 100,     // Hold new direction for 100ms before committing
+      angularThreshold: Math.PI / 8 // 22.5 degree threshold
+    });
+    
+    // Initialize direction smoother with default direction
+    this.directionSmoother.setDirection(Direction.SOUTH);
   }
   
   /**
@@ -330,6 +355,170 @@ class AgentEntity extends Entity {
   }
   
   /**
+   * Update character direction based on velocity (Phase 3, Task 3.3)
+   * @param {number} vx - Velocity X component
+   * @param {number} vy - Velocity Y component
+   * @param {number} deltaTime - Time since last update (milliseconds)
+   * @returns {string} Current direction
+   */
+  updateDirection(vx, vy, deltaTime) {
+    // Use direction smoother to prevent rapid direction changes
+    const newDirection = this.directionSmoother.update(vx, vy, deltaTime);
+    
+    if (newDirection !== this.currentDirection) {
+      this.currentDirection = newDirection;
+      this.updatedAt = Date.now();
+    }
+    
+    return this.currentDirection;
+  }
+  
+  /**
+   * Get current facing direction (Phase 3, Task 3.3)
+   * @returns {string} Current direction
+   */
+  getDirection() {
+    return this.currentDirection;
+  }
+  
+  /**
+   * Set facing direction directly (Phase 3, Task 3.3)
+   * @param {string} direction - Direction to face
+   */
+  setDirection(direction) {
+    this.currentDirection = direction;
+    this.directionSmoother.setDirection(direction);
+    this.updatedAt = Date.now();
+  }
+  
+  /**
+   * Update sprite animation based on agent state (Phase 3, Task 3.3)
+   * Maps agent state to sprite animation state
+   * @returns {string} Current sprite animation state
+   */
+  updateSpriteAnimation() {
+    let newAnimation = SpriteAnimationState.IDLE;
+    
+    // Map agent state to sprite animation
+    switch (this.agentState) {
+      case AgentState.IDLE:
+        newAnimation = SpriteAnimationState.IDLE;
+        break;
+      case AgentState.WORKING:
+      case AgentState.THINKING:
+      case AgentState.BLOCKED:
+        newAnimation = SpriteAnimationState.WORKING;
+        break;
+      case AgentState.CELEBRATING:
+        newAnimation = SpriteAnimationState.CELEBRATING;
+        break;
+      case AgentState.ERROR:
+        newAnimation = SpriteAnimationState.IDLE; // Use idle for error state
+        break;
+      default:
+        newAnimation = SpriteAnimationState.IDLE;
+    }
+    
+    // Check if agent is moving (has velocity)
+    const position = this.getComponent('position');
+    if (position && position.velocity) {
+      const velocityMagnitude = Math.sqrt(
+        position.velocity.x * position.velocity.x + 
+        position.velocity.y * position.velocity.y
+      );
+      
+      // If moving with significant velocity, use walking animation
+      if (velocityMagnitude > 10) {
+        newAnimation = SpriteAnimationState.WALKING;
+      }
+    }
+    
+    if (newAnimation !== this.currentSpriteAnimation) {
+      this.currentSpriteAnimation = newAnimation;
+      this.spriteFrameIndex = 0; // Reset frame when animation changes
+      this.spriteFrameTime = 0;
+      this.updatedAt = Date.now();
+    }
+    
+    return this.currentSpriteAnimation;
+  }
+  
+  /**
+   * Get current sprite animation state (Phase 3, Task 3.3)
+   * @returns {string} Current sprite animation
+   */
+  getSpriteAnimation() {
+    return this.currentSpriteAnimation;
+  }
+  
+  /**
+   * Update sprite frame (Phase 3, Task 3.3)
+   * @param {number} deltaTime - Time since last update (milliseconds)
+   * @returns {number} Current frame index
+   */
+  updateSpriteFrame(deltaTime) {
+    const spriteManager = getCharacterSpriteManager();
+    
+    // Get frame count for current animation
+    const frameCount = spriteManager.getAnimationFrameCount(
+      this.characterType,
+      this.currentSpriteAnimation
+    );
+    
+    // Get animation config for frame rate
+    const config = spriteManager.getAnimationConfig(this.characterType);
+    const frameRate = config ? config.frameRate : 8; // Default 8 FPS
+    const frameDuration = 1000 / frameRate; // Duration per frame in ms
+    
+    // Accumulate time
+    this.spriteFrameTime += deltaTime;
+    
+    // Check if we should advance to next frame
+    if (this.spriteFrameTime >= frameDuration) {
+      this.spriteFrameTime -= frameDuration;
+      this.spriteFrameIndex = (this.spriteFrameIndex + 1) % frameCount;
+    }
+    
+    return this.spriteFrameIndex;
+  }
+  
+  /**
+   * Get current sprite texture (Phase 3, Task 3.3)
+   * @returns {PIXI.Texture|null} Current sprite texture
+   */
+  getCurrentSpriteTexture() {
+    const spriteManager = getCharacterSpriteManager();
+    
+    return spriteManager.getSprite(
+      this.characterType,
+      this.currentSpriteAnimation,
+      this.currentDirection,
+      this.spriteFrameIndex
+    );
+  }
+  
+  /**
+   * Update agent visuals (Phase 3, Task 3.3)
+   * Should be called every frame to update direction, animation, and sprite
+   * @param {number} deltaTime - Time since last update (milliseconds)
+   */
+  updateVisuals(deltaTime) {
+    // Get position component for velocity
+    const position = this.getComponent('position');
+    
+    if (position && position.velocity) {
+      // Update direction based on velocity
+      this.updateDirection(position.velocity.x, position.velocity.y, deltaTime);
+    }
+    
+    // Update sprite animation based on state
+    this.updateSpriteAnimation();
+    
+    // Update sprite frame
+    this.updateSpriteFrame(deltaTime);
+  }
+  
+  /**
    * Serialize agent to JSON
    * @returns {object} JSON representation
    */
@@ -341,7 +530,12 @@ class AgentEntity extends Entity {
       metadata: this.metadata,
       stateHistory: this.stateHistory,
       assignedDepartment: this.assignedDepartment,
-      metrics: this.metrics
+      metrics: this.metrics,
+      // Sprite-related properties (Phase 3, Task 3.3)
+      characterType: this.characterType,
+      currentDirection: this.currentDirection,
+      currentSpriteAnimation: this.currentSpriteAnimation,
+      spriteFrameIndex: this.spriteFrameIndex
     };
   }
   
@@ -373,6 +567,21 @@ class AgentEntity extends Entity {
     agent.assignedDepartment = json.assignedDepartment;
     agent.metrics = json.metrics;
     
+    // Restore sprite-related properties (Phase 3, Task 3.3)
+    if (json.characterType) {
+      agent.characterType = json.characterType;
+    }
+    if (json.currentDirection) {
+      agent.currentDirection = json.currentDirection;
+      agent.directionSmoother.setDirection(json.currentDirection);
+    }
+    if (json.currentSpriteAnimation) {
+      agent.currentSpriteAnimation = json.currentSpriteAnimation;
+    }
+    if (json.spriteFrameIndex !== undefined) {
+      agent.spriteFrameIndex = json.spriteFrameIndex;
+    }
+    
     return agent;
   }
 }
@@ -382,9 +591,10 @@ class AgentEntity extends Entity {
  * @param {string} agentType - Type of agent
  * @param {object} position - Initial position {x, y, z}
  * @param {string} id - Optional custom ID
+ * @param {object} scene - Optional scene reference for shadow creation
  * @returns {AgentEntity} Configured agent entity
  */
-export function createAgent(agentType, position = { x: 0, y: 0, z: 0 }, id = null) {
+export async function createAgent(agentType, position = { x: 0, y: 0, z: 0 }, id = null, scene = null) {
   // Generate ID if not provided
   const agentId = id || `agent-${agentType}-${Date.now()}`;
   
@@ -416,6 +626,32 @@ export function createAgent(agentType, position = { x: 0, y: 0, z: 0 }, id = nul
     { label: 'Assign Task', action: 'assign_task' }
   ];
   agent.addComponent('interaction', createInteractionComponent(true, true, false, contextMenu));
+  
+  // Load character sprites (Phase 3, Task 3.3)
+  const spriteManager = getCharacterSpriteManager(scene);
+  if (!spriteManager.isCharacterLoaded('agent')) {
+    try {
+      await spriteManager.loadCharacterSprites('agent', {
+        frameRate: 8,
+        frameCount: {
+          [SpriteAnimationState.IDLE]: 1,
+          [SpriteAnimationState.WALKING]: 4,
+          [SpriteAnimationState.WORKING]: 4,
+          [SpriteAnimationState.CELEBRATING]: 6
+        }
+      });
+    } catch (error) {
+      console.error('Failed to load character sprites:', error);
+      // Continue with placeholder rendering
+    }
+  }
+  
+  // Create shadow if scene is provided (Phase 1, Task 1.5)
+  if (scene && scene.shadowSystem) {
+    scene.shadowSystem.createShadow(agent, 'medium', {
+      alpha: 0.3
+    });
+  }
   
   return agent;
 }

@@ -767,7 +767,7 @@ This implementation plan breaks down the Experta system into discrete, increment
     - Ready for deployment and integration testing
     - _Status: Implementation complete, awaiting deployment_
 
-- [ ] 36. Integration Testing for Phase 2
+- [x] 36. Integration Testing for Phase 2
   - [x] 35.1 Test complete onboarding flow without tokens
     - User completes onboarding
     - No token requests shown

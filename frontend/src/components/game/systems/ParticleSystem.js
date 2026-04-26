@@ -5,11 +5,13 @@
  * - Particle emitter with physics (gravity, velocity)
  * - Particle pooling for performance (pool size: 100)
  * - Particle rendering with alpha blending
- * - Multiple particle effect types (confetti, sparkles, smoke, stars)
+ * - Multiple particle effect types (confetti, sparkles, smoke, stars, dust, work progress)
+ * - 3D-themed effects for isometric visual style
  * 
- * Requirements: 8.1, 8.2, 8.3, 9.1, 9.2
+ * Requirements: 8.1, 8.2, 8.3, 9.1, 9.2, REQ-4.3
  * Phase 8, Task 45
  * Phase 9, Task 52 (Refactored to use ObjectPool)
+ * Phase 4, Task 4.3 (Enhanced for 3D visual upgrade)
  */
 
 import * as PIXI from 'pixi.js';
@@ -324,6 +326,302 @@ class ParticleSystem {
       size: 4,
       shape: 'star'
     });
+  }
+  
+  /**
+   * Emit ambient dust particles for atmosphere
+   * Creates subtle floating particles that enhance 3D depth
+   */
+  emitDust(x, y, options = {}) {
+    const {
+      count = 5,
+      radius = 50,
+      duration = 5000
+    } = options;
+    
+    return this.emit({
+      x: x + (Math.random() - 0.5) * radius,
+      y: y + (Math.random() - 0.5) * radius,
+      count,
+      colors: [0xE5E7EB, 0xD1D5DB, 0xF3F4F6], // Light gray tones
+      life: duration,
+      gravity: -0.05, // Very slow upward drift
+      spread: 360, // All directions
+      speed: 0.3, // Very slow movement
+      size: 2,
+      shape: 'circle'
+    });
+  }
+  
+  /**
+   * Create continuous ambient dust emitter
+   * For background atmosphere in departments
+   */
+  createDustEmitter(x, y, options = {}) {
+    const {
+      rate = 2, // 2 particles per second
+      radius = 100,
+      duration = Infinity
+    } = options;
+    
+    return this.createEmitter({
+      x,
+      y,
+      rate,
+      duration,
+      count: 1,
+      colors: [0xE5E7EB, 0xD1D5DB],
+      life: 5000,
+      gravity: -0.05,
+      spread: 360,
+      speed: 0.3,
+      size: 2,
+      shape: 'circle'
+    });
+  }
+  
+  /**
+   * Emit enhanced celebration sparkles
+   * More dramatic effect for major achievements
+   */
+  emitCelebrationSparkles(x, y) {
+    // Trigger camera shake for celebration (Task 4.5)
+    if (this.scene && this.scene.shakeCamera) {
+      this.scene.shakeCamera(8, 400); // Medium shake for 400ms
+    }
+    
+    // Main burst
+    const mainBurst = this.emit({
+      x,
+      y,
+      count: 40,
+      colors: [0xFBBF24, 0xF59E0B, 0xFFFFFF],
+      life: 2500,
+      gravity: 0.1,
+      spread: 360,
+      speed: 3,
+      size: 4,
+      shape: 'star'
+    });
+    
+    // Secondary delayed burst
+    setTimeout(() => {
+      this.emit({
+        x,
+        y,
+        count: 20,
+        colors: [0xFBBF24, 0xFFFFFF],
+        life: 2000,
+        gravity: 0.2,
+        spread: 360,
+        speed: 2,
+        size: 3,
+        shape: 'star'
+      });
+    }, 200);
+    
+    return mainBurst;
+  }
+  
+  /**
+   * Emit work progress indicator particles
+   * Shows agent is actively working on a task
+   */
+  emitWorkProgress(x, y, color = 0x4F46E5) {
+    return this.emit({
+      x,
+      y: y - 20, // Above agent's head
+      count: 3,
+      colors: [color, this.lightenColor(color, 0.3)],
+      life: 1500,
+      gravity: -0.3, // Float upward
+      spread: 20,
+      speed: 1,
+      size: 3,
+      shape: 'circle'
+    });
+  }
+  
+  /**
+   * Create continuous work progress emitter
+   * For ongoing work visualization
+   */
+  createWorkProgressEmitter(x, y, color = 0x4F46E5, duration = 5000) {
+    return this.createEmitter({
+      x,
+      y: y - 20,
+      rate: 3, // 3 particles per second
+      duration,
+      count: 1,
+      colors: [color, this.lightenColor(color, 0.3)],
+      life: 1500,
+      gravity: -0.3,
+      spread: 20,
+      speed: 1,
+      size: 3,
+      shape: 'circle'
+    });
+  }
+  
+  /**
+   * Emit task completion burst
+   * Celebratory effect when task is completed
+   */
+  emitTaskCompletion(x, y, taskType = 'default') {
+    // Color based on task type
+    const colorSchemes = {
+      content: [0x4F46E5, 0x6366F1, 0x818CF8], // Indigo
+      publishing: [0x10B981, 0x34D399, 0x6EE7B7], // Green
+      trend: [0xF59E0B, 0xFBBF24, 0xFCD34D], // Amber
+      support: [0x8B5CF6, 0xA78BFA, 0xC4B5FD], // Purple
+      admin: [0x6B7280, 0x9CA3AF, 0xD1D5DB], // Gray
+      default: [0x4F46E5, 0x10B981, 0xF59E0B] // Mixed
+    };
+    
+    const colors = colorSchemes[taskType] || colorSchemes.default;
+    
+    // Main confetti burst
+    const confetti = this.emit({
+      x,
+      y,
+      count: 25,
+      colors,
+      life: 2000,
+      gravity: 0.5,
+      spread: 60,
+      speed: 3.5,
+      size: 5,
+      shape: 'square'
+    });
+    
+    // Sparkle ring
+    setTimeout(() => {
+      this.emit({
+        x,
+        y,
+        count: 15,
+        colors: [0xFFFFFF, ...colors],
+        life: 1500,
+        gravity: 0,
+        spread: 360,
+        speed: 2,
+        size: 3,
+        shape: 'star'
+      });
+    }, 100);
+    
+    return confetti;
+  }
+  
+  /**
+   * Emit level up effect
+   * Dramatic effect for agent level ups
+   */
+  emitLevelUp(x, y) {
+    // Trigger camera shake for level up (Task 4.5)
+    if (this.scene && this.scene.shakeCamera) {
+      this.scene.shakeCamera(12, 500); // Strong shake for 500ms
+    }
+    
+    // Golden burst
+    const burst = this.emit({
+      x,
+      y,
+      count: 50,
+      colors: [0xFBBF24, 0xF59E0B, 0xFFFFFF],
+      life: 3000,
+      gravity: 0.2,
+      spread: 360,
+      speed: 4,
+      size: 5,
+      shape: 'star'
+    });
+    
+    // Rising stars
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        this.emit({
+          x,
+          y,
+          count: 10,
+          colors: [0xFBBF24, 0xFFFFFF],
+          life: 2000,
+          gravity: -0.5, // Rise up
+          spread: 30,
+          speed: 2,
+          size: 4,
+          shape: 'star'
+        });
+      }, i * 300);
+    }
+    
+    return burst;
+  }
+  
+  /**
+   * Emit department theme particles
+   * Themed particles for each department
+   */
+  emitDepartmentTheme(x, y, departmentId) {
+    const themes = {
+      content_creation: {
+        colors: [0x4F46E5, 0x6366F1, 0x818CF8],
+        shape: 'star'
+      },
+      publishing: {
+        colors: [0x10B981, 0x34D399, 0x6EE7B7],
+        shape: 'square'
+      },
+      trend_analysis: {
+        colors: [0xF59E0B, 0xFBBF24, 0xFCD34D],
+        shape: 'star'
+      },
+      customer_support: {
+        colors: [0x8B5CF6, 0xA78BFA, 0xC4B5FD],
+        shape: 'circle'
+      },
+      administration: {
+        colors: [0x6B7280, 0x9CA3AF, 0xD1D5DB],
+        shape: 'square'
+      }
+    };
+    
+    const theme = themes[departmentId] || themes.content_creation;
+    
+    return this.emit({
+      x,
+      y,
+      count: 15,
+      colors: theme.colors,
+      life: 2000,
+      gravity: 0.3,
+      spread: 45,
+      speed: 2,
+      size: 4,
+      shape: theme.shape
+    });
+  }
+  
+  /**
+   * Lighten a color by a percentage
+   * @param {number} color - Original color (hex)
+   * @param {number} amount - Amount to lighten (0-1)
+   * @returns {number} Lightened color (hex)
+   * @private
+   */
+  lightenColor(color, amount) {
+    // Extract RGB components
+    const r = (color >> 16) & 0xFF;
+    const g = (color >> 8) & 0xFF;
+    const b = color & 0xFF;
+    
+    // Lighten each component
+    const newR = Math.min(255, Math.floor(r + (255 - r) * amount));
+    const newG = Math.min(255, Math.floor(g + (255 - g) * amount));
+    const newB = Math.min(255, Math.floor(b + (255 - b) * amount));
+    
+    // Combine back into hex
+    return (newR << 16) | (newG << 8) | newB;
   }
   
   /**

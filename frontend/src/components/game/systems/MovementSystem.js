@@ -6,9 +6,16 @@
  * - Collision detection and avoidance
  * - Smooth movement with tweening
  * - Walkability checking for grid cells
+ * - Animation integration (Phase 3, Task 3.5)
  * 
- * Requirements: 3.2, 3.3
- * Phase 3, Task 13
+ * Requirements: 3.2, 3.3, 3.5
+ * Phase 3, Task 13, Task 3.5
+ * 
+ * Enhanced for Task 3.5:
+ * - Triggers walking animation on movement start
+ * - Updates direction based on movement velocity
+ * - Returns to idle animation when stopped
+ * - Smooth animation transitions
  */
 
 /**
@@ -84,8 +91,9 @@ class PriorityQueue {
  * MovementSystem - Manages entity movement and pathfinding
  */
 class MovementSystem {
-  constructor(entityRegistry, gridSize = 64) {
+  constructor(entityRegistry, animationSystem = null, gridSize = 64) {
     this.entityRegistry = entityRegistry;
+    this.animationSystem = animationSystem; // Optional AnimationSystem for animation integration
     this.gridSize = gridSize; // Size of each grid cell in pixels
     
     // Grid dimensions (calculated from world bounds)
@@ -100,6 +108,9 @@ class MovementSystem {
     
     // Movement speed (pixels per second)
     this.defaultSpeed = 100;
+    
+    // Velocity tracking for direction updates (entityId -> {vx, vy})
+    this.entityVelocities = new Map();
   }
   
   /**
@@ -377,6 +388,11 @@ class MovementSystem {
         resolve,
         reject
       });
+      
+      // Trigger walking animation if AnimationSystem is available (Task 3.5)
+      if (this.animationSystem && entity.type === 'agent') {
+        this.startWalkingAnimation(entityId);
+      }
     });
   }
   
@@ -390,6 +406,14 @@ class MovementSystem {
     if (movementState) {
       movementState.reject(new Error('Movement cancelled'));
       this.movingEntities.delete(entityId);
+      
+      // Stop walking animation and return to idle (Task 3.5)
+      if (this.animationSystem) {
+        this.stopWalkingAnimation(entityId);
+      }
+      
+      // Clear velocity
+      this.entityVelocities.delete(entityId);
     }
   }
   
@@ -415,6 +439,7 @@ class MovementSystem {
       
       if (!entity) {
         this.movingEntities.delete(entityId);
+        this.entityVelocities.delete(entityId);
         continue;
       }
       
@@ -422,8 +447,13 @@ class MovementSystem {
       
       if (!position) {
         this.movingEntities.delete(entityId);
+        this.entityVelocities.delete(entityId);
         continue;
       }
+      
+      // Store previous position for velocity calculation
+      const prevX = position.x;
+      const prevY = position.y;
       
       // Get current waypoint
       const waypoint = movementState.path[movementState.currentWaypoint];
@@ -432,6 +462,14 @@ class MovementSystem {
         // Path complete
         movementState.resolve();
         this.movingEntities.delete(entityId);
+        
+        // Stop walking animation and return to idle (Task 3.5)
+        if (this.animationSystem && entity.type === 'agent') {
+          this.stopWalkingAnimation(entityId);
+        }
+        
+        // Clear velocity
+        this.entityVelocities.delete(entityId);
         continue;
       }
       
@@ -453,6 +491,14 @@ class MovementSystem {
           
           movementState.resolve();
           this.movingEntities.delete(entityId);
+          
+          // Stop walking animation and return to idle (Task 3.5)
+          if (this.animationSystem && entity.type === 'agent') {
+            this.stopWalkingAnimation(entityId);
+          }
+          
+          // Clear velocity
+          this.entityVelocities.delete(entityId);
         }
         
         continue;
@@ -465,9 +511,90 @@ class MovementSystem {
       position.x += dx * ratio;
       position.y += dy * ratio;
       
+      // Calculate velocity for direction updates (Task 3.5)
+      const vx = (position.x - prevX) / deltaSeconds;
+      const vy = (position.y - prevY) / deltaSeconds;
+      
+      // Store velocity
+      this.entityVelocities.set(entityId, { vx, vy });
+      
+      // Update position component with velocity
+      if (!position.velocity) {
+        position.velocity = { x: 0, y: 0 };
+      }
+      position.velocity.x = vx;
+      position.velocity.y = vy;
+      
       // Update entity's position component
       entity.addComponent('position', position);
+      
+      // Update direction based on movement (Task 3.5)
+      if (entity.type === 'agent' && entity.updateDirection) {
+        entity.updateDirection(vx, vy, deltaTime);
+      }
     }
+  }
+  
+  /**
+   * Start walking animation for entity (Task 3.5)
+   * @param {string} entityId - Entity ID
+   * @private
+   */
+  startWalkingAnimation(entityId) {
+    if (!this.animationSystem) {
+      return;
+    }
+    
+    const entity = this.entityRegistry.getEntity(entityId);
+    
+    if (!entity) {
+      return;
+    }
+    
+    // Check if entity has animation component
+    const animComponent = entity.getComponent('animation');
+    
+    if (!animComponent) {
+      return;
+    }
+    
+    // Start walking animation with smooth transition
+    this.animationSystem.playAnimation(entityId, 'walking', {
+      loop: true,
+      transitionDuration: 150, // 150ms smooth transition
+      restart: false // Don't restart if already walking
+    });
+  }
+  
+  /**
+   * Stop walking animation and return to idle (Task 3.5)
+   * @param {string} entityId - Entity ID
+   * @private
+   */
+  stopWalkingAnimation(entityId) {
+    if (!this.animationSystem) {
+      return;
+    }
+    
+    const entity = this.entityRegistry.getEntity(entityId);
+    
+    if (!entity) {
+      return;
+    }
+    
+    // Check if entity has animation component
+    const animComponent = entity.getComponent('animation');
+    
+    if (!animComponent) {
+      return;
+    }
+    
+    // Return to idle animation with smooth transition
+    this.animationSystem.playAnimation(entityId, 'idle', {
+      loop: true,
+      transitionDuration: 150, // 150ms smooth transition
+      restart: false
+    });
   }
   
   /**
@@ -500,6 +627,7 @@ class MovementSystem {
     }
     
     this.movingEntities.clear();
+    this.entityVelocities.clear();
   }
 }
 

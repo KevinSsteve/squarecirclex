@@ -292,6 +292,10 @@ class DebugOverlay {
     const thresholds = performanceMonitor.thresholds;
     const qualityLevel = performanceMonitor.getQualityLevel();
     
+    // Get camera state (Task 4.5)
+    const cameraState = this.scene.getCameraState();
+    const cameraBounds = this.scene.bounds;
+    
     // Color code values
     const fpsColor = this.getColorForValue(metrics.fps, thresholds.fps.warning, thresholds.fps.critical, true);
     const entityColor = this.getColorForValue(metrics.entityCount, thresholds.entityCount.warning, thresholds.entityCount.critical, false);
@@ -303,6 +307,28 @@ class DebugOverlay {
           <div style="color: #888; font-size: 10px; margin-bottom: 4px;">FRAME RATE</div>
           <div style="font-size: 16px;">
             FPS: <span style="color: ${fpsColor}; font-weight: bold;">${metrics.fps}</span> / ${thresholds.fps.target}
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 12px;">
+          <div style="color: #888; font-size: 10px; margin-bottom: 4px;">CAMERA (Task 4.5)</div>
+          <div style="font-size: 9px;">
+            Position: <span style="color: #00aaff;">(${cameraState.x.toFixed(0)}, ${cameraState.y.toFixed(0)})</span>
+          </div>
+          <div style="font-size: 9px;">
+            Target: <span style="color: #00aaff;">(${cameraState.targetX.toFixed(0)}, ${cameraState.targetY.toFixed(0)})</span>
+          </div>
+          <div style="font-size: 9px;">
+            Zoom: <span style="color: #00aaff;">${cameraState.zoom.toFixed(2)}x</span> → <span style="color: #00aaff;">${cameraState.targetZoom.toFixed(2)}x</span>
+          </div>
+          <div style="font-size: 9px;">
+            Shake: <span style="color: ${this.scene.camera.shakeDuration > 0 ? '#ff0000' : '#666'};">${this.scene.camera.shakeDuration > 0 ? 'ACTIVE' : 'OFF'}</span>
+          </div>
+          <div style="font-size: 9px;">
+            Easing: <span style="color: #ffaa00; text-transform: uppercase;">${this.scene.camera.easingMode}</span>
+          </div>
+          <div style="font-size: 8px; color: #666; margin-top: 4px;">
+            Bounds: (${cameraBounds.minX}, ${cameraBounds.minY}) to (${cameraBounds.maxX}, ${cameraBounds.maxY})
           </div>
         </div>
         

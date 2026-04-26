@@ -83,9 +83,9 @@ async function handleSaveSettings(event) {
   }
 
   // Validate platform
-  if (!['instagram', 'linkedin'].includes(platform)) {
+  if (!['instagram', 'linkedin', 'meta'].includes(platform)) {
     return createResponse(400, { 
-      error: 'Invalid platform. Must be "instagram" or "linkedin"' 
+      error: 'Invalid platform. Must be "instagram", "linkedin", or "meta"' 
     });
   }
 
@@ -100,6 +100,12 @@ async function handleSaveSettings(event) {
     if (!credentials.clientId || !credentials.clientSecret || !credentials.redirectUri) {
       return createResponse(400, { 
         error: 'LinkedIn credentials must include clientId, clientSecret, and redirectUri' 
+      });
+    }
+  } else if (platform === 'meta') {
+    if (!credentials.appId || !credentials.appSecret || !credentials.redirectUri) {
+      return createResponse(400, { 
+        error: 'Meta credentials must include appId, appSecret, and redirectUri' 
       });
     }
   }
@@ -150,6 +156,17 @@ async function handleSaveSettings(event) {
   // Store metadata in DynamoDB (Requirement 19.5)
   const userId = event.requestContext?.authorizer?.claims?.sub || 'unknown';
   const db = getDynamoDBClient();
+  
+  // Determine scopes based on platform
+  let scopes;
+  if (platform === 'instagram') {
+    scopes = ['instagram_basic', 'instagram_content_publish'];
+  } else if (platform === 'linkedin') {
+    scopes = ['w_member_social', 'r_liteprofile'];
+  } else if (platform === 'meta') {
+    scopes = ['pages_manage_posts', 'instagram_basic', 'instagram_content_publish', 'pages_read_engagement'];
+  }
+  
   await db.send(new PutCommand({
     TableName: PLATFORM_CREDENTIALS_TABLE,
     Item: {
@@ -158,9 +175,7 @@ async function handleSaveSettings(event) {
       client_id_secret_arn: secretArn,
       client_secret_arn: secretArn,
       redirect_uri: credentials.redirectUri,
-      scopes: platform === 'instagram' 
-        ? ['instagram_basic', 'instagram_content_publish'] 
-        : ['w_member_social', 'r_liteprofile'],
+      scopes: scopes,
       is_active: true,
       created_by: userId,
       created_at: new Date().toISOString(),
@@ -199,8 +214,8 @@ async function testOAuthConnection(platform, credentials) {
       if (credentials.appSecret.length < 20) {
         return { success: false, error: 'Instagram App Secret appears too short' };
       }
-      if (!credentials.redirectUri.startsWith('https://')) {
-        return { success: false, error: 'Redirect URI must use HTTPS' };
+      if (!credentials.redirectUri.startsWith('https://') && !credentials.redirectUri.startsWith('http://')) {
+        return { success: false, error: 'Redirect URI must use HTTP or HTTPS' };
       }
       
       return { 
@@ -215,13 +230,29 @@ async function testOAuthConnection(platform, credentials) {
       if (credentials.clientSecret.length < 10) {
         return { success: false, error: 'LinkedIn Client Secret appears too short' };
       }
-      if (!credentials.redirectUri.startsWith('https://')) {
-        return { success: false, error: 'Redirect URI must use HTTPS' };
+      if (!credentials.redirectUri.startsWith('https://') && !credentials.redirectUri.startsWith('http://')) {
+        return { success: false, error: 'Redirect URI must use HTTP or HTTPS' };
       }
       
       return { 
         success: true, 
         message: 'LinkedIn credentials validated successfully' 
+      };
+    } else if (platform === 'meta') {
+      // Validate Meta credentials format
+      if (!credentials.appId.match(/^\d+$/)) {
+        return { success: false, error: 'Invalid Meta App ID format (must be numeric)' };
+      }
+      if (credentials.appSecret.length < 20) {
+        return { success: false, error: 'Meta App Secret appears too short' };
+      }
+      if (!credentials.redirectUri.startsWith('https://') && !credentials.redirectUri.startsWith('http://')) {
+        return { success: false, error: 'Redirect URI must use HTTP or HTTPS' };
+      }
+      
+      return { 
+        success: true, 
+        message: 'Meta credentials validated successfully' 
       };
     }
     
@@ -248,9 +279,9 @@ async function handleGetSettings(event) {
     });
   }
 
-  if (!['instagram', 'linkedin'].includes(platform)) {
+  if (!['instagram', 'linkedin', 'meta'].includes(platform)) {
     return createResponse(400, { 
-      error: 'Invalid platform. Must be "instagram" or "linkedin"' 
+      error: 'Invalid platform. Must be "instagram", "linkedin", or "meta"' 
     });
   }
 

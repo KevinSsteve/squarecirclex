@@ -10,7 +10,6 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import AdminRoute from './components/auth/AdminRoute';
 import Dashboard from './components/dashboard/Dashboard';
 import GameView from './components/game/GameView';
-import Onboarding from './components/onboarding/Onboarding';
 import Admin from './components/admin/Admin';
 import ProfileSettings from './pages/ProfileSettings';
 import ConnectAccounts from './pages/ConnectAccounts';
@@ -46,28 +45,16 @@ function App() {
         <Route path="/signup" element={<Signup />} />
         
         {/* PROTECTED ROUTES - WITH AUTH CONTEXT */}
-        {/* Game View Route (Phase 10, Task 64) */}
+        {/* Game View Route - NO AUTH REQUIRED (Direct Access) */}
         <Route
           path="/app"
-          element={
-            <ProtectedWrapper>
-              <GameView />
-            </ProtectedWrapper>
-          }
+          element={<GameView />}
         />
         <Route
           path="/chat"
           element={
             <ProtectedWrapper>
               <ChatPage />
-            </ProtectedWrapper>
-          }
-        />
-        <Route
-          path="/onboarding"
-          element={
-            <ProtectedWrapper>
-              <Onboarding />
             </ProtectedWrapper>
           }
         />

@@ -404,18 +404,21 @@ class PerformanceMonitor {
     const particleSystem = this.scene.getParticleSystem();
     if (particleSystem) {
       particleSystem.setEnabled(settings.particles);
-      particleSystem.setCountMultiplier(settings.particleMultiplier);
+      // Only call setCountMultiplier if it exists
+      if (typeof particleSystem.setCountMultiplier === 'function') {
+        particleSystem.setCountMultiplier(settings.particleMultiplier);
+      }
     }
     
     // Apply to LOD system
     const lodSystem = this.scene.getLODSystem();
-    if (lodSystem) {
+    if (lodSystem && typeof lodSystem.setForcedLOD === 'function') {
       if (!settings.animations) {
         // Force low LOD if animations disabled
-        lodSystem.setManualLOD('low');
+        lodSystem.setForcedLOD('low');
       } else {
         // Let LOD system auto-detect
-        lodSystem.setManualLOD(null);
+        lodSystem.setForcedLOD(null);
       }
     }
     

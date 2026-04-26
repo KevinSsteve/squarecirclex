@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear localStorage</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #1f2937; margin-top: 0; }
+        p { color: #6b7280; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover { background: #2563eb; }
+        button.secondary { background: #6b7280; }
+        button.secondary:hover { background: #4b5563; }
+        .output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Development Mode localStorage</h1>
+        <p>This will clear all game-related localStorage items and redirect to /app.</p>
+        
+        <button onclick="clearAndReload()">Clear localStorage Now</button>
+        <button class="secondary" onclick="window.location.href='http://localhost:5173/app'">Go to /app</button>
+        <button class="secondary" onclick="window.location.href='http://localhost:5173/app?view=game'">Go to /app?view=game</button>
+        
+        <div class="output" id="output">Ready to clear... Auto-executing in 3 seconds.</div>
+    </div>
+    
+    <script>
+        function clearAndReload() {
+            const output = document.getElementById('output');
+            output.innerHTML = '🧹 Starting localStorage clear...<br><br>';
+            
+            const items = [
+                'viewToggle',
+                'devModeBannerDismissed',
+                'gamePreferences',
+                'cameraPreferences',
+                'userPreferences',
+                'soundSettings',
+                'accessibilitySettings'
+            ];
+            
+            let cleared = 0;
+            items.forEach(key => {
+                if (localStorage.getItem(key) !== null) {
+                    localStorage.removeItem(key);
+                    output.innerHTML += '<span style="color: #10b981">✓ Cleared: ' + key + '</span><br>';
+                    cleared++;
+                } else {
+                    output.innerHTML += '<span style="color: #6b7280">- Not found: ' + key + '</span><br>';
+                }
+            });
+            
+            output.innerHTML += '<br><span style="color: #10b981; font-weight: bold">✓ Cleared ' + cleared + ' items</span><br>';
+            output.innerHTML += '<br><span style="color: #3b82f6">🔄 Reloading and redirecting to /app in 2 seconds...</span>';
+            
+            setTimeout(function() {
+                window.location.href = 'http://localhost:5173/app';
+            }, 2000);
+        }
+        
+        // Auto-execute after 3 seconds
+        setTimeout(clearAndReload, 3000);
+    </script>
+</body>
+</html>

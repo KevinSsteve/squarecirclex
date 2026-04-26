@@ -22,6 +22,7 @@ import SoundControlPanel from './SoundControlPanel';
  * - Bottom status bar
  * - Panel collapse/expand functionality
  * - Z-index layering management
+ * - Enhanced 3D visual styling (Phase 4, Task 4.4)
  * 
  * Requirements: 7.1, 7.6
  */
@@ -93,6 +94,76 @@ const UIOverlay = ({
       window.removeEventListener('game:entitySelect', handleEntitySelected);
       window.removeEventListener('game:entityDeselect', handleEntityDeselected);
       window.removeEventListener('game:toggleAccessibilityPanel', handleToggleAccessibilityPanel);
+    };
+  }, []);
+  
+  // Inject custom styles for 3D UI enhancements (Phase 4, Task 4.4)
+  useEffect(() => {
+    const styleId = 'ui-overlay-3d-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        /* Custom scrollbar for panels */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(243, 244, 246, 0.5);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.5);
+          border-radius: 4px;
+          transition: background 0.2s;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(107, 114, 128, 0.7);
+        }
+        
+        /* Slide-in animations */
+        @keyframes slideInLeft {
+          from {
+            transform: translateX(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slideInLeft {
+          animation: slideInLeft 0.3s ease-out;
+        }
+        .animate-slideInRight {
+          animation: slideInRight 0.3s ease-out;
+        }
+        
+        /* Backdrop blur support */
+        @supports (backdrop-filter: blur(10px)) {
+          .backdrop-blur-sm {
+            backdrop-filter: blur(10px);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    return () => {
+      const existingStyle = document.getElementById(styleId);
+      if (existingStyle) {
+        existingStyle.remove();
+      }
     };
   }, []);
 
@@ -252,11 +323,20 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 shadow-sm">
+    <div className="bg-gradient-to-r from-white via-gray-50 to-white border-b border-gray-200 shadow-md">
       <div className="h-16 px-4 flex items-center justify-between">
         {/* Left section - Logo and title */}
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-gray-900">AI Company Simulator</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <h1 className="text-lg font-bold text-gray-900 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              AI Company Simulator
+            </h1>
+          </div>
           
           {/* View Toggle (Phase 10, Task 64) */}
           <ViewToggleButton />
@@ -264,11 +344,11 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
 
         {/* Center section - Camera controls and search */}
         <div className="flex items-center gap-4">
-          {/* Camera Control Buttons */}
-          <div className="flex items-center gap-1 bg-gray-50 rounded-lg p-1">
+          {/* Camera Control Buttons with enhanced styling */}
+          <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-md border border-gray-200">
             <button
               onClick={() => handleCameraControl('zoomIn')}
-              className="p-1.5 hover:bg-white rounded transition-colors"
+              className="p-2 hover:bg-indigo-50 rounded-lg transition-all duration-200 hover:shadow-sm"
               title="Zoom In (+)"
               aria-label="Zoom in"
             >
@@ -278,7 +358,7 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
             </button>
             <button
               onClick={() => handleCameraControl('zoomOut')}
-              className="p-1.5 hover:bg-white rounded transition-colors"
+              className="p-2 hover:bg-indigo-50 rounded-lg transition-all duration-200 hover:shadow-sm"
               title="Zoom Out (-)"
               aria-label="Zoom out"
             >
@@ -288,7 +368,7 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
             </button>
             <button
               onClick={() => handleCameraControl('reset')}
-              className="p-1.5 hover:bg-white rounded transition-colors"
+              className="p-2 hover:bg-indigo-50 rounded-lg transition-all duration-200 hover:shadow-sm"
               title="Reset View (Home)"
               aria-label="Reset camera view"
             >
@@ -298,7 +378,7 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
             </button>
           </div>
 
-          {/* Search Bar */}
+          {/* Search Bar with enhanced styling */}
           <div className="relative">
             <div className="relative">
               <input
@@ -308,7 +388,7 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
                 onFocus={() => searchQuery && setShowSearchResults(true)}
                 onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
                 placeholder="Search agents or tasks..."
-                className="w-64 pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-64 pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm transition-all duration-200 hover:border-gray-400"
               />
               <svg 
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" 
@@ -320,9 +400,9 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
               </svg>
             </div>
 
-            {/* Search Results Dropdown */}
+            {/* Search Results Dropdown with enhanced styling */}
             {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
+              <div className="absolute top-full mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 custom-scrollbar">
                 {searchResults.map((result, index) => (
                   <button
                     key={index}
@@ -333,12 +413,12 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
                       setShowSearchResults(false);
                       setSearchQuery('');
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                    className="w-full px-3 py-2.5 text-left hover:bg-indigo-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 transition-colors duration-150"
                   >
-                    <span className="text-lg">{result.icon}</span>
+                    <span className="text-xl">{result.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">{result.name}</div>
-                      <div className="text-xs text-gray-500">{result.type}</div>
+                      <div className="text-sm font-semibold text-gray-900 truncate">{result.name}</div>
+                      <div className="text-xs text-gray-500 font-medium">{result.type}</div>
                     </div>
                   </button>
                 ))}
@@ -347,16 +427,16 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
           </div>
 
           {/* Keyboard Shortcuts Hint */}
-          <div className="hidden lg:flex items-center gap-2 text-xs text-gray-500">
-            <kbd className="px-2 py-1 bg-gray-100 rounded">↑↓←→</kbd>
+          <div className="hidden lg:flex items-center gap-2 text-xs text-gray-500 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+            <kbd className="px-2 py-1 bg-gray-100 rounded font-mono text-xs">↑↓←→</kbd>
             <span>Pan</span>
-            <kbd className="px-2 py-1 bg-gray-100 rounded">Tab</kbd>
+            <kbd className="px-2 py-1 bg-gray-100 rounded font-mono text-xs">Tab</kbd>
             <span>Cycle</span>
           </div>
         </div>
 
         {/* Right section - Status and user menu */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Sound Button */}
           <button
             onClick={onSoundClick}
@@ -492,20 +572,21 @@ const TopBar = ({ onViewToggle, connectionStatus, onAccessibilityClick, onSoundC
  * 
  * Status bar at the bottom of the screen.
  * Shows sync status, agent count, task count, and FPS.
+ * Enhanced with 3D visual styling (Phase 4, Task 4.4)
  * 
  * Requirements: 8.6
  */
 const BottomBar = ({ fps, connectionStatus, agentCount, taskCount }) => {
   return (
-    <div className="bg-white border-t border-gray-200 shadow-sm">
-      <div className="h-10 px-4 flex items-center justify-between text-xs text-gray-600">
+    <div className="bg-gradient-to-r from-white via-gray-50 to-white border-t border-gray-200 shadow-lg">
+      <div className="h-10 px-4 flex items-center justify-between text-xs">
         {/* Left section - Sync status */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span>
+            <span className="font-semibold text-gray-700">
               {connectionStatus === 'connected' ? 'Synced' :
                connectionStatus === 'disconnected' ? 'Syncing...' :
                'Sync Error'}
@@ -513,29 +594,32 @@ const BottomBar = ({ fps, connectionStatus, agentCount, taskCount }) => {
           </div>
         </div>
 
-        {/* Center section - Counts */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Center section - Counts with enhanced styling */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 shadow-sm">
+            <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
-            <span>{agentCount} Agent{agentCount !== 1 ? 's' : ''}</span>
+            <span className="font-bold text-indigo-700">{agentCount}</span>
+            <span className="font-medium text-gray-600">Agent{agentCount !== 1 ? 's' : ''}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-sm">
+            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <span>{taskCount} Task{taskCount !== 1 ? 's' : ''}</span>
+            <span className="font-bold text-blue-700">{taskCount}</span>
+            <span className="font-medium text-gray-600">Task{taskCount !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
-        {/* Right section - Performance */}
-        <div className="flex items-center gap-2">
-          <span className="font-mono">{fps} FPS</span>
+        {/* Right section - Performance with enhanced styling */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <span className="font-mono font-bold text-gray-700">{fps}</span>
+          <span className="font-medium text-gray-600">FPS</span>
           <div className={`w-2 h-2 rounded-full ${
-            fps >= 55 ? 'bg-green-500' :
-            fps >= 45 ? 'bg-yellow-500' :
-            'bg-red-500'
+            fps >= 55 ? 'bg-green-500 shadow-green-500/50 shadow-md' :
+            fps >= 45 ? 'bg-yellow-500 shadow-yellow-500/50 shadow-md' :
+            'bg-red-500 shadow-red-500/50 shadow-md'
           }`} />
         </div>
       </div>

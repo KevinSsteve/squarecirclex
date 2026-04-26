@@ -1,3 +1,5 @@
+import SpriteAtlasManager from './SpriteAtlasManager';
+
 /**
  * AssetLoader Utility
  * 
@@ -10,6 +12,7 @@
  * - Asset caching with browser cache
  * - Error handling and retry logic
  * - Loading screen integration
+ * - Sprite atlas loading support (Task 1.2)
  * 
  * Phase 9, Task 57
  * Requirements: 10.3, 10.4, 10.5
@@ -329,7 +332,27 @@ class AssetLoader {
    * @returns {Promise<object>}
    */
   async loadSpritesheet(asset) {
-    // Load image and JSON definition
+    // Use SpriteAtlasManager for sprite atlas loading
+    if (asset.atlasName && asset.definitionUrl) {
+      try {
+        const spritesheet = await SpriteAtlasManager.loadAtlas(
+          asset.atlasName,
+          asset.url,
+          asset.definitionUrl
+        );
+        
+        return {
+          atlasName: asset.atlasName,
+          spritesheet,
+          textures: spritesheet.textures
+        };
+      } catch (error) {
+        console.error(`AssetLoader: Failed to load sprite atlas: ${asset.atlasName}`, error);
+        throw error;
+      }
+    }
+    
+    // Fallback to legacy loading for backward compatibility
     const [image, definition] = await Promise.all([
       this.loadImage({ ...asset, type: 'image' }),
       this.loadJSON({ ...asset, url: asset.definitionUrl, type: 'json' })
@@ -452,6 +475,8 @@ class AssetLoader {
    */
   clearCache() {
     this.loadedAssets.clear();
+    // Also clear sprite atlas cache
+    SpriteAtlasManager.unloadAll();
     console.log('AssetLoader: Cache cleared');
   }
   

@@ -1610,6 +1610,78 @@ exports.handler = async (event, context) => {
           brandId: brand.brand_id 
         });
       }
+      
+      // PHASE 3: Create post in DynamoDB and emit EventBridge event for Meta Publisher
+      if (responseData.image_url) {
+        try {
+          const { EventBridgeClient, PutEventsCommand } = require('@aws-sdk/client-eventbridge');
+          const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'us-east-1' });
+          
+          // Create post in DynamoDB
+          const postData = {
+            brand_id: brand.brand_id,
+            caption: result.post_content.caption,
+            image_url: responseData.image_url,
+            platform: 'instagram', // Default platform
+            scheduled_time: new Date().toISOString(), // Immediate publication
+            status: 'Draft',
+            content_pillar: result.post_content.content_pillar || 'General',
+            platforms: ['facebook', 'instagram'], // Meta platforms
+          };
+          
+          const createdPost = await PostsDataAccess.createPost(postData);
+          
+          ErrorHandler.logInfo('Post created in DynamoDB', { 
+            postId: createdPost.post_id,
+            brandId: brand.brand_id,
+            platforms: createdPost.platforms
+          });
+          
+          // Add post_id to response
+          responseData.post_id = createdPost.post_id;
+          
+          // Emit EventBridge event for Meta Publisher
+          const eventParams = {
+            Entries: [{
+              Source: 'experta.posts',
+              DetailType: 'PostCreated',
+              Detail: JSON.stringify({
+                post_id: createdPost.post_id,
+                brand_id: brand.brand_id,
+                platforms: createdPost.platforms,
+                image_url: createdPost.image_url,
+                caption: createdPost.caption
+              }),
+              EventBusName: process.env.EVENTBRIDGE_BUS_NAME || 'default'
+            }]
+          };
+          
+          const eventCommand = new PutEventsCommand(eventParams);
+          const eventResponse = await eventBridge.send(eventCommand);
+          
+          if (eventResponse.FailedEntryCount > 0) {
+            ErrorHandler.logError(new Error('Failed to emit EventBridge event'), {
+              operation: 'emitPostCreatedEvent',
+              postId: createdPost.post_id,
+              failedEntries: eventResponse.Entries
+            });
+          } else {
+            ErrorHandler.logInfo('EventBridge event emitted for Meta Publisher', { 
+              postId: createdPost.post_id,
+              brandId: brand.brand_id,
+              platforms: createdPost.platforms
+            });
+          }
+          
+        } catch (postCreationError) {
+          ErrorHandler.logError(postCreationError, { 
+            operation: 'createPostAndEmitEvent',
+            brandId: brand.brand_id,
+            message: 'Failed to create post or emit event'
+          });
+          // Don't fail the entire request - post content was still generated
+        }
+      }
     }
     
     // SAVE CHAT HISTORY (unless silent_mode is enabled)

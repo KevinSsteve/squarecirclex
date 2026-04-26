@@ -2,17 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as PIXI from 'pixi.js';
 import { api } from '../../config/api';
-import { tokenManager } from '../../utils/tokenManager';
 import Scene from './Scene';
 import UIOverlay from './ui/UIOverlay';
 import ContextMenuManager from './ui/ContextMenuManager';
 import LoadingScreen from './ui/LoadingScreen';
 import ErrorNotificationPanel from './ui/ErrorNotificationPanel';
+import DevModeBanner from './ui/DevModeBanner';
 import AssetLoader from './utils/AssetLoader';
 import viewToggle, { ViewMode } from './utils/ViewToggle';
 import { createAgent, AgentType, AgentState } from './entities/index.js';
 import { registerAgentAnimations, loadPlaceholderTextures } from './animations/index.js';
 import { GameErrorBoundary, UIErrorBoundary } from './errors/index.js';
+import { getLayoutForDepartment, getFurnitureType } from './layout/FurnitureLayout.js';
 
 /**
  * GameView Component - V4 with PixiJS and Entity System
@@ -54,11 +55,6 @@ const GameView = () => {
   // Scene instance
   const sceneRef = useRef(null);
   
-  // Authentication state (Task 1.1)
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecking, setAuthChecking] = useState(true);
-  const [authError, setAuthError] = useState(null);
-  
   // Agent state: 'idle' | 'working'
   const [agentState, setAgentState] = useState('idle');
   
@@ -92,126 +88,10 @@ const GameView = () => {
   // View toggle state (Phase 10, Task 64)
   const [gameLoadFailed, setGameLoadFailed] = useState(false);
 
-  /**
-   * View Toggle Effect (Phase 10, Task 64)
-   * 
-   * Monitors view toggle state and handles automatic fallback.
-   * Redirects to traditional view if game view is not available.
-   * Supports URL parameter override (?view=game) for testing.
-   */
-  useEffect(() => {
-    // Check for URL parameter override
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceView = urlParams.get('view');
-    
-    if (forceView === 'game') {
-      // Override saved preference - force game view
-      console.log('[GameView] URL parameter override - forcing game view');
-      viewToggle.setView(ViewMode.GAME);
-      // Don't redirect, continue loading game
-    } else {
-      // Check if game view is available
-      if (!viewToggle.isGameViewAvailable()) {
-        console.log('[GameView] Game view not available - redirecting to dashboard');
-        navigate('/dashboard');
-        return;
-      }
-      
-      // Check if user preference is traditional view
-      if (viewToggle.isTraditionalView()) {
-        console.log('[GameView] User prefers traditional view - redirecting to dashboard');
-        navigate('/dashboard');
-        return;
-      }
-    }
-    
-    // Listen for view changes
-    const handleViewChange = (event) => {
-      if (event.type === 'viewChange' && event.currentView === ViewMode.TRADITIONAL) {
-        console.log('[GameView] Switching to traditional view');
-        navigate('/dashboard');
-      } else if (event.type === 'loadFailure' && event.fallback) {
-        console.error('[GameView] Game load failed - falling back to traditional view');
-        setGameLoadFailed(true);
-        navigate('/dashboard');
-      }
-    };
-    
-    viewToggle.addListener(handleViewChange);
-    
-    return () => {
-      viewToggle.removeListener(handleViewChange);
-    };
-  }, [navigate]);
+  // View Toggle Effect removed - direct access without checks
 
   /**
-   * Authentication Check Effect (Task 1.1)
-   * 
-   * Checks if user is authenticated before allowing game to load.
-   * Prevents backend 500 errors by ensuring valid auth context.
-   */
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setAuthChecking(true);
-        setAuthError(null);
-        
-        // Get token from tokenManager
-        const token = await tokenManager.getToken();
-        
-        if (!token) {
-          console.log('[GameView] No authentication token found');
-          setIsAuthenticated(false);
-          setAuthError('not_authenticated');
-          setConnectionStatus('auth_required');
-          setAuthChecking(false);
-          return;
-        }
-        
-        // Check if token is expired
-        const isExpired = await tokenManager.isTokenExpired();
-        
-        if (isExpired) {
-          console.log('[GameView] Authentication token expired');
-          setIsAuthenticated(false);
-          setAuthError('token_expired');
-          setConnectionStatus('auth_required');
-          setAuthChecking(false);
-          return;
-        }
-        
-        // Check if user has brand association
-        const brandId = await tokenManager.getBrandId();
-        
-        if (!brandId) {
-          console.log('[GameView] User has no brand association');
-          setIsAuthenticated(false);
-          setAuthError('no_brand_association');
-          setConnectionStatus('auth_required');
-          setAuthChecking(false);
-          return;
-        }
-        
-        // All checks passed
-        console.log('[GameView] Authentication successful', { brandId });
-        setIsAuthenticated(true);
-        setAuthError(null);
-        setConnectionStatus('connected');
-        setAuthChecking(false);
-      } catch (error) {
-        console.error('[GameView] Authentication check failed:', error);
-        setIsAuthenticated(false);
-        setAuthError('auth_check_failed');
-        setConnectionStatus('auth_required');
-        setAuthChecking(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
-
-  /**
-   * Backend Polling Effect
+   * Backend Polling Effect - TEMPORARILY DISABLED FOR PUBLIC ACCESS
    * 
    * Fetches posts from the backend every 3 seconds to check for:
    * - Posts currently generating (agent should be working)
@@ -221,14 +101,16 @@ const GameView = () => {
    * Enhanced with ErrorRecoverySystem integration (Phase 10, Task 60)
    * Implements circuit breaker with exponential backoff (Game View 502 Fix)
    * Enhanced with authentication checks (Task 1.3)
+   * 
+   * TODO: Re-enable when authentication is properly handled
    */
   // Backend polling - fetch posts with circuit breaker
   useEffect(() => {
-    // Don't poll if not authenticated (Task 1.3)
-    if (!isAuthenticated) {
-      console.log('[GameView] Skipping backend polling - not authenticated');
-      return;
-    }
+    // DISABLED: Skip backend polling for public access
+    console.log('[GameView] Backend polling disabled for public access');
+    return;
+    
+    /* ORIGINAL CODE - COMMENTED OUT
     
     let timeoutId = null;
     let consecutiveErrors = 0;
@@ -305,26 +187,6 @@ const GameView = () => {
       } catch (error) {
         console.error('Error fetching posts:', error);
         
-        // Enhanced error handling (Task 1.3)
-        // Check for authentication errors - don't retry
-        if (error.status === 401 || error.status === 403) {
-          console.log('[GameView] Authentication error - stopping polling');
-          setConnectionStatus('auth_required');
-          setAuthError('auth_required');
-          setIsAuthenticated(false);
-          // Don't schedule next poll - user must re-authenticate
-          return;
-        }
-        
-        // Check for "no brand association" error
-        if (error.status === 500 && error.message?.toLowerCase().includes('brand association')) {
-          console.log('[GameView] No brand association error - stopping polling');
-          setConnectionStatus('auth_required');
-          setAuthError('no_brand_association');
-          // Don't schedule next poll - user must complete onboarding
-          return;
-        }
-        
         consecutiveErrors++;
         
         // Use ErrorRecoverySystem to handle the error
@@ -372,7 +234,8 @@ const GameView = () => {
         clearTimeout(timeoutId);
       }
     };
-  }, [agentState, retryTrigger, isAuthenticated]); // Re-run when agentState, retryTrigger, or isAuthenticated changes
+    */ // END COMMENTED CODE
+  }, [agentState, retryTrigger]); // Re-run when agentState or retryTrigger changes
 
   /**
    * PixiJS Initialization Effect
@@ -599,7 +462,8 @@ const GameView = () => {
       drawOfficeLayout(scene);
 
       // Create agent entity using entity system (Phase 2)
-      const agentEntity = createAgentEntity(scene);
+      // Now async for character sprite loading (Phase 3, Task 3.3)
+      const agentEntity = await createAgentEntity(scene);
 
       // FPS counter
       let lastTime = performance.now();
@@ -624,6 +488,13 @@ const GameView = () => {
 
         // Update scene (camera smoothing, entity updates)
         scene.update(deltaTime);
+        
+        // Update agent visuals (direction, animation, sprite frame) - Phase 3, Task 3.3
+        const entityRegistry = scene.getEntityRegistry();
+        const agent = entityRegistry.getEntity(agentEntity);
+        if (agent) {
+          agent.updateVisuals(deltaTime);
+        }
 
         // Update agent visual based on state
         updateAgentEntity(scene, agentEntity, agentState, showSuccess);
@@ -1059,9 +930,199 @@ const GameView = () => {
   };
 
   /**
-   * Draw the isometric office layout
+   * Render furniture for a department
+   * Uses FurnitureLayout definitions to place furniture items
+   * @param {Scene} scene - The scene management system
+   * @param {string} departmentId - Department identifier
+   * @param {number} offsetX - X offset for positioning
+   * @param {number} offsetY - Y offset for positioning
+   */
+  const renderDepartmentFurniture = (scene, departmentId, offsetX, offsetY) => {
+    const furnitureLayout = getLayoutForDepartment(departmentId);
+    
+    furnitureLayout.forEach(item => {
+      const furnitureType = getFurnitureType(item.type);
+      
+      if (!furnitureType) {
+        console.warn(`Unknown furniture type: ${item.type}`);
+        return;
+      }
+      
+      // Calculate isometric position
+      const pos = gridToIso(item.gridX, item.gridY);
+      const x = pos.x + offsetX;
+      const y = pos.y + offsetY;
+      
+      // Create furniture sprite (placeholder using Graphics for now)
+      const furniture = new PIXI.Graphics();
+      
+      // Calculate furniture dimensions in isometric space
+      const width = furnitureType.width * (GRID_SIZE / ISO_RATIO);
+      const height = furnitureType.height * (GRID_SIZE / (ISO_RATIO * 2));
+      
+      // Draw furniture as isometric rectangle
+      // For now, using simple shapes - will be replaced with sprites in future tasks
+      switch (furnitureType.type) {
+        case 'desk_simple':
+        case 'desk_l_shape':
+          // Draw desk as isometric rectangle
+          drawFurnitureRect(furniture, 0, 0, width, height, furnitureType.color, 0x654321);
+          break;
+          
+        case 'chair':
+          // Draw chair as small circle
+          furniture.circle(0, 0, 8);
+          furniture.fill({ color: furnitureType.color, alpha: 0.9 });
+          furniture.circle(0, 0, 8);
+          furniture.stroke({ width: 1, color: 0x2D3748 });
+          break;
+          
+        case 'whiteboard':
+        case 'schedule_board':
+          // Draw board as thin rectangle
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.fill({ color: furnitureType.color, alpha: 0.95 });
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.stroke({ width: 2, color: 0x2D3748 });
+          break;
+          
+        case 'plant_small':
+        case 'plant_large':
+          // Draw plant as circle with darker center
+          const plantRadius = furnitureType.width * 10;
+          furniture.circle(0, 0, plantRadius);
+          furniture.fill({ color: furnitureType.color, alpha: 0.8 });
+          furniture.circle(0, 0, plantRadius * 0.6);
+          furniture.fill({ color: 0x2F855A, alpha: 0.9 });
+          break;
+          
+        case 'filing_cabinet':
+          // Draw filing cabinet as tall rectangle
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.fill({ color: furnitureType.color, alpha: 0.9 });
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.stroke({ width: 1, color: 0x4A5568 });
+          // Add drawer lines
+          for (let i = 1; i < 3; i++) {
+            const drawerY = -height / 2 + (height / 3) * i;
+            furniture.moveTo(-width / 2, drawerY);
+            furniture.lineTo(width / 2, drawerY);
+            furniture.stroke({ width: 1, color: 0x2D3748 });
+          }
+          break;
+          
+        case 'bookshelf':
+          // Draw bookshelf as rectangle with shelves
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.fill({ color: furnitureType.color, alpha: 0.9 });
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.stroke({ width: 1, color: 0x654321 });
+          // Add shelf lines
+          for (let i = 1; i < 4; i++) {
+            const shelfY = -height / 2 + (height / 4) * i;
+            furniture.moveTo(-width / 2, shelfY);
+            furniture.lineTo(width / 2, shelfY);
+            furniture.stroke({ width: 1, color: 0x654321 });
+          }
+          break;
+          
+        case 'monitor_stand':
+          // Draw monitor as rectangle with stand
+          furniture.rect(-width / 2, -height / 2, width, height * 0.7);
+          furniture.fill({ color: furnitureType.color, alpha: 0.95 });
+          furniture.rect(-width / 2, -height / 2, width, height * 0.7);
+          furniture.stroke({ width: 1, color: 0x1A202C });
+          // Stand
+          furniture.rect(-width / 4, height * 0.2, width / 2, height * 0.3);
+          furniture.fill({ color: 0x4A5568, alpha: 0.9 });
+          break;
+          
+        case 'meeting_table':
+        case 'coffee_table':
+          // Draw table as isometric rectangle
+          drawFurnitureRect(furniture, 0, 0, width, height, furnitureType.color, 0x654321);
+          break;
+          
+        case 'water_cooler':
+          // Draw water cooler as cylinder
+          furniture.circle(0, 0, 10);
+          furniture.fill({ color: furnitureType.color, alpha: 0.8 });
+          furniture.rect(-8, -5, 16, 10);
+          furniture.fill({ color: 0xFFFFFF, alpha: 0.6 });
+          furniture.circle(0, 0, 10);
+          furniture.stroke({ width: 1, color: 0x2C5282 });
+          break;
+          
+        case 'printer':
+          // Draw printer as box
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.fill({ color: furnitureType.color, alpha: 0.9 });
+          furniture.rect(-width / 2, -height / 2, width, height);
+          furniture.stroke({ width: 1, color: 0x718096 });
+          // Paper tray
+          furniture.rect(-width / 3, height / 4, width * 0.6, height / 4);
+          furniture.fill({ color: 0xFFFFFF, alpha: 0.8 });
+          break;
+          
+        default:
+          // Default: simple rectangle
+          drawFurnitureRect(furniture, 0, 0, width, height, furnitureType.color, 0x2D3748);
+      }
+      
+      // Position furniture
+      furniture.x = x;
+      furniture.y = y;
+      
+      // Apply rotation if specified
+      if (item.rotation) {
+        furniture.rotation = (item.rotation * Math.PI) / 180;
+      }
+      
+      // Set zIndex for depth sorting
+      furniture.zIndex = y;
+      
+      // Add to appropriate layer
+      const layer = item.layer || furnitureType.defaultLayer;
+      scene.addToLayer(layer, furniture);
+    });
+  };
+  
+  /**
+   * Draw furniture as isometric rectangle
+   * Helper function for rendering furniture items
+   * @param {PIXI.Graphics} graphics - Graphics object to draw on
+   * @param {number} centerX - Center X position
+   * @param {number} centerY - Center Y position
+   * @param {number} width - Width in pixels
+   * @param {number} height - Height in pixels
+   * @param {number} color - Fill color
+   * @param {number} strokeColor - Stroke color
+   */
+  const drawFurnitureRect = (graphics, centerX, centerY, width, height, color, strokeColor) => {
+    // Draw as diamond shape for isometric view
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    
+    graphics.moveTo(centerX, centerY - halfHeight);
+    graphics.lineTo(centerX + halfWidth, centerY);
+    graphics.lineTo(centerX, centerY + halfHeight);
+    graphics.lineTo(centerX - halfWidth, centerY);
+    graphics.lineTo(centerX, centerY - halfHeight);
+    graphics.fill({ color, alpha: 0.9 });
+    
+    graphics.moveTo(centerX, centerY - halfHeight);
+    graphics.lineTo(centerX + halfWidth, centerY);
+    graphics.lineTo(centerX, centerY + halfHeight);
+    graphics.lineTo(centerX - halfWidth, centerY);
+    graphics.lineTo(centerX, centerY - halfHeight);
+    graphics.stroke({ width: 1, color: strokeColor });
+  };
+
+  /**
+   * Draw the isometric office layout using DepartmentRenderer
    * Creates a complete office environment with 5 departments
    * Uses grid-based coordinate system with isometric projection
+   * Enhanced with DepartmentRenderer system (Phase 2, Task 2.4)
    * @param {Scene} scene - The scene management system
    */
   const drawOfficeLayout = (scene) => {
@@ -1070,10 +1131,6 @@ const GameView = () => {
     background.rect(0, 0, 2000, 1500);
     background.fill({ color: 0xF3F4F6 });
     scene.addToLayer('background', background);
-
-    // Offset to center the office in the viewport
-    const offsetX = 400;
-    const offsetY = 200;
 
     // Department definitions from design.md
     const departments = [
@@ -1124,7 +1181,21 @@ const GameView = () => {
       },
     ];
 
+    // Use DepartmentRenderer to render all departments
+    const departmentRenderer = scene.getDepartmentRenderer();
+    if (departmentRenderer) {
+      departmentRenderer.renderAll(departments);
+      
+      // Log rendering statistics
+      const stats = departmentRenderer.getStats();
+      console.log('[GameView] Department rendering complete:', stats);
+    } else {
+      console.error('[GameView] DepartmentRenderer not available');
+    }
+
     // Draw grid lines (optional, for debugging)
+    const offsetX = 400;
+    const offsetY = 200;
     const gridLines = new PIXI.Graphics();
     for (let x = 0; x <= 20; x++) {
       for (let y = 0; y <= 15; y++) {
@@ -1134,48 +1205,6 @@ const GameView = () => {
       }
     }
     scene.addToLayer('background', gridLines);
-
-    // Draw each department
-    departments.forEach(dept => {
-      const deptGraphics = new PIXI.Graphics();
-      
-      // Draw isometric rectangle
-      const topLeft = drawIsometricRect(
-        deptGraphics,
-        dept.gridX,
-        dept.gridY,
-        dept.gridWidth,
-        dept.gridHeight,
-        dept.color,
-        dept.color
-      );
-
-      // Apply offset to position in world
-      deptGraphics.x = offsetX;
-      deptGraphics.y = offsetY;
-
-      scene.addToLayer('background', deptGraphics);
-
-      // Department label
-      const label = new PIXI.Text({
-        text: dept.name,
-        style: {
-          fontFamily: 'Arial',
-          fontSize: 14,
-          fill: 0x1F2937,
-          fontWeight: 'bold',
-        }
-      });
-      label.x = topLeft.x + offsetX + 10;
-      label.y = topLeft.y + offsetY + 10;
-      scene.addToLayer('ui_world', label);
-
-      // Department icon/indicator
-      const indicator = new PIXI.Graphics();
-      indicator.circle(topLeft.x + offsetX + 5, topLeft.y + offsetY + 5, 4);
-      indicator.fill({ color: dept.color });
-      scene.addToLayer('ui_world', indicator);
-    });
 
     // Draw grid reference lines for better depth perception
     const referenceLines = new PIXI.Graphics();
@@ -1203,10 +1232,11 @@ const GameView = () => {
 
   /**
    * Create an agent entity using the AgentEntity class
+   * Enhanced with character sprite rendering (Phase 3, Task 3.3)
    * @param {Scene} scene - The scene management system
    * @returns {string} Entity ID
    */
-  const createAgentEntity = (scene) => {
+  const createAgentEntity = async (scene) => {
     const entityRegistry = scene.getEntityRegistry();
     
     // Grid position (4, 4) with offset
@@ -1214,11 +1244,12 @@ const GameView = () => {
     const worldX = agentGridPos.x + 400;
     const worldY = agentGridPos.y + 200;
     
-    // Create agent using factory function
-    const agent = createAgent(
+    // Create agent using factory function (now async for sprite loading)
+    const agent = await createAgent(
       AgentType.CONTENT_GENERATOR,
       { x: worldX, y: worldY, z: 0 },
-      'agent-marketing-1'
+      'agent-marketing-1',
+      scene // Pass scene for shadow creation
     );
     
     // Register agent with entity registry
@@ -1234,20 +1265,21 @@ const GameView = () => {
     entityRegistry.stats.created++;
     entityRegistry.stats.active++;
     
-    // Create visual representation
+    // Create visual representation with character sprite
     const agentContainer = new PIXI.Container();
     const position = agent.getComponent('position');
     agentContainer.x = position.x;
     agentContainer.y = position.y;
 
-    // Agent body (circle)
-    const body = new PIXI.Graphics();
-    body.circle(0, 0, 30);
-    body.fill({ color: agent.getColor() });
-    agentContainer.addChild(body);
+    // Character sprite (replaces circle)
+    const spriteTexture = agent.getCurrentSpriteTexture();
+    const characterSprite = new PIXI.Sprite(spriteTexture);
+    characterSprite.anchor.set(0.5, 0.5);
+    characterSprite.scale.set(1.5); // Scale up for visibility
+    agentContainer.addChild(characterSprite);
 
-    // Store reference to body for animation updates
-    agentContainer.body = body;
+    // Store reference to sprite for animation updates
+    agentContainer.characterSprite = characterSprite;
 
     // Agent label with icon
     const label = new PIXI.Text({
@@ -1292,6 +1324,7 @@ const GameView = () => {
 
   /**
    * Update agent entity visual based on current state
+   * Enhanced with character sprite updates (Phase 3, Task 3.3)
    * @param {Scene} scene - The scene management system
    * @param {string} entityId - Entity ID
    * @param {string} state - Agent state ('idle' | 'working')
@@ -1316,29 +1349,18 @@ const GameView = () => {
     if (!spriteComponent || !spriteComponent.pixiSprite) return;
     
     const agentContainer = spriteComponent.pixiSprite;
-    if (!agentContainer.body) return;
-
-    // Update body color based on state
-    agentContainer.body.clear();
-    agentContainer.body.circle(0, 0, 30);
     
-    const currentState = agent.getState();
-    
-    if (currentState === AgentState.CELEBRATING) {
-      agentContainer.body.fill({ color: 0x10B981 }); // Green for success
-    } else if (currentState === AgentState.WORKING) {
-      agentContainer.body.fill({ color: 0x3B82F6 }); // Blue for working
-      
-      // Add pulsing effect
-      const pulse = Math.sin(Date.now() / 500) * 5;
-      agentContainer.body.circle(0, 0, 30 + pulse);
-      agentContainer.body.stroke({ width: 2, color: 0x3B82F6 });
-    } else {
-      agentContainer.body.fill({ color: agent.getColor() }); // Agent color for idle
+    // Update character sprite texture (Phase 3, Task 3.3)
+    if (agentContainer.characterSprite) {
+      const newTexture = agent.getCurrentSpriteTexture();
+      if (newTexture) {
+        agentContainer.characterSprite.texture = newTexture;
+      }
     }
 
     // Update status text
     if (agentContainer.statusText) {
+      const currentState = agent.getState();
       let statusText = '😴 Idle';
       let statusColor = 0x6B7280;
 
@@ -1471,14 +1493,13 @@ const GameView = () => {
   };
 
   /**
-   * Fallback to traditional UI
-   * Redirects to dashboard when game layer fails critically
+   * Fallback to traditional UI (disabled - direct access mode)
+   * Logs error but does not redirect
    */
   const handleFallbackToTraditional = () => {
-    console.log('[GameView] Falling back to traditional UI');
+    console.log('[GameView] Fallback requested but disabled in direct access mode');
     setGameLoadFailed(true);
-    viewToggle.setView(ViewMode.TRADITIONAL);
-    navigate('/dashboard');
+    // No redirect - stay on game view
   };
   
   /**
@@ -1499,103 +1520,16 @@ const GameView = () => {
     setRetryTrigger(prev => prev + 1);
   };
 
-  /**
-   * Render authentication required message (Task 1.7)
-   */
-  const renderAuthRequired = () => {
-    let title = 'Authentication Required';
-    let message = 'Please log in to view the game dashboard.';
-    let actionButton = null;
-    
-    if (authError === 'no_brand_association') {
-      title = 'Complete Onboarding';
-      message = 'You need to complete the onboarding process to access the game dashboard.';
-      actionButton = (
-        <button
-          onClick={() => navigate('/onboarding')}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-        >
-          Start Onboarding
-        </button>
-      );
-    } else if (authError === 'token_expired') {
-      title = 'Session Expired';
-      message = 'Your session has expired. Please log in again.';
-      actionButton = (
-        <button
-          onClick={() => navigate('/login')}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-        >
-          Log In
-        </button>
-      );
-    } else {
-      actionButton = (
-        <button
-          onClick={() => navigate('/login')}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-        >
-          Log In
-        </button>
-      );
-    }
-    
-    return (
-      <div className="fixed inset-0 bg-gray-100 flex items-center justify-center">
-        <div className="max-w-md w-full mx-4 bg-white rounded-lg shadow-lg p-8 text-center">
-          <div className="mb-6">
-            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
-            <p className="text-gray-600">{message}</p>
-          </div>
-          
-          <div className="space-y-3">
-            {actionButton}
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-            >
-              Go to Traditional View
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
-  /**
-   * Render loading state (Task 1.1)
-   */
-  const renderAuthChecking = () => {
-    return (
-      <div className="fixed inset-0 bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-          <p className="text-gray-600 font-medium">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  };
-
-  // Show loading state while checking authentication (Task 1.1)
-  if (authChecking) {
-    return renderAuthChecking();
-  }
-
-  // Show authentication required message if not authenticated (Task 1.7)
-  if (!isAuthenticated) {
-    return renderAuthRequired();
-  }
 
   return (
     <GameErrorBoundary
       onError={handleGameError}
       onFallbackToTraditional={handleFallbackToTraditional}
     >
+      {/* Development Mode Banner - shown when dev mode is active */}
+      <DevModeBanner />
+      
       {/* Loading Screen - shown while assets are loading (Phase 9, Task 57) */}
       <LoadingScreen
         progress={loadingProgress}
