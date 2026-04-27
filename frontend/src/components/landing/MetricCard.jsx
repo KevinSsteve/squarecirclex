@@ -1,42 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, useInView } from 'motion/react';
 import PropTypes from 'prop-types';
 import designSystem from '../../styles/designSystem';
 
 const MetricCard = ({ number, value, label, delay = 0 }) => {
-  const [isVisible, setIsVisible] = useState(false);
   const [displayValue, setDisplayValue] = useState('0');
   const cardRef = useRef(null);
+  const isInView = useInView(cardRef, { once: true, amount: 0.3 });
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.2 }
-    );
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
-
-    return () => {
-      if (cardRef.current) {
-        observer.unobserve(cardRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) return;
+    if (!isInView) return;
 
     const timeout = setTimeout(() => {
       animateValue();
     }, delay);
 
     return () => clearTimeout(timeout);
-  }, [isVisible, delay]);
+  }, [isInView, delay]);
 
   const animateValue = () => {
     const duration = 2000;
@@ -74,34 +54,34 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
   };
 
   return (
-    <div
+    <motion.div
       ref={cardRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{ 
+        duration: 0.6, 
+        delay: delay / 1000,
+        ease: [0.4, 0, 0.2, 1]
+      }}
+      whileHover={{ 
+        y: -8,
+        boxShadow: designSystem.shadows.hover,
+        transition: { duration: 0.3, ease: 'easeOut' }
+      }}
       style={{
         padding: designSystem.spacing.xl,
         backgroundColor: designSystem.colors.white,
         border: `1px solid ${designSystem.colors.gray[200]}`,
         borderRadius: '8px',
         textAlign: 'center',
-        transition: `all ${designSystem.transitions.normal}`,
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
         cursor: 'default',
-        ':hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: designSystem.shadows.lg
-        }
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = designSystem.shadows.lg;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
       }}
     >
       {/* Number Badge */}
-      <div
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={isInView ? { scale: 1, opacity: 1 } : { scale: 0.8, opacity: 0 }}
+        transition={{ delay: (delay / 1000) + 0.2, duration: 0.4 }}
         style={{
           display: 'inline-block',
           padding: `${designSystem.spacing.xs} ${designSystem.spacing.sm}`,
@@ -115,7 +95,7 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
         }}
       >
         {number}
-      </div>
+      </motion.div>
 
       {/* Metric Value */}
       <div
@@ -140,7 +120,7 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
       >
         {label}
       </div>
-    </div>
+    </motion.div>
   );
 };
 

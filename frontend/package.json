@@ -16,6 +16,7 @@
     "@aws-amplify/ui-react": "^6.15.0",
     "aws-amplify": "^6.16.2",
     "axios": "^1.13.5",
+    "motion": "^12.38.0",
     "pixi.js": "^8.18.0",
     "prop-types": "^15.8.1",
     "react": "^19.2.0",

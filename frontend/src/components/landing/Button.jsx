@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import PropTypes from 'prop-types';
 import { colors, borderRadius, shadows, transitions } from '../../styles/designSystem';
 
@@ -17,7 +18,6 @@ const Button = ({
     justifyContent: 'center',
     fontWeight: 600,
     borderRadius: borderRadius.xl,
-    transition: `all ${transitions.duration.base} ${transitions.timing.easeInOut}`,
     cursor: disabled ? 'not-allowed' : 'pointer',
     border: 'none',
     textDecoration: 'none',
@@ -29,27 +29,15 @@ const Button = ({
       backgroundColor: colors.black,
       color: colors.white,
       boxShadow: shadows.lg,
-      ':hover': !disabled && {
-        backgroundColor: colors.gray[800],
-        boxShadow: shadows.xl,
-        transform: 'translateY(-2px)',
-      },
     },
     secondary: {
       backgroundColor: colors.white,
       color: colors.black,
       border: `2px solid ${colors.gray[200]}`,
-      ':hover': !disabled && {
-        backgroundColor: colors.gray[50],
-        borderColor: colors.gray[300],
-      },
     },
     ghost: {
       backgroundColor: 'transparent',
       color: colors.gray[700],
-      ':hover': !disabled && {
-        backgroundColor: colors.gray[100],
-      },
     },
   };
 
@@ -84,31 +72,51 @@ const Button = ({
     }
   };
 
-  // If href is provided, render as anchor
+  // Animation variants based on button variant
+  const hoverAnimation = !disabled ? {
+    scale: 1.02,
+    y: -2,
+    boxShadow: variant === 'primary' ? shadows.hover : shadows.md,
+    backgroundColor: variant === 'primary' ? colors.gray[800] : 
+                     variant === 'secondary' ? colors.gray[50] : 
+                     colors.gray[100],
+  } : {};
+
+  const tapAnimation = !disabled ? {
+    scale: 0.98,
+  } : {};
+
+  // If href is provided, render as motion anchor
   if (href && !disabled) {
     return (
-      <a
+      <motion.a
         href={href}
         style={combinedStyles}
         className={`button button-${variant} button-${size} ${className}`}
+        whileHover={hoverAnimation}
+        whileTap={tapAnimation}
+        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
         {...props}
       >
         {children}
-      </a>
+      </motion.a>
     );
   }
 
-  // Otherwise render as button
+  // Otherwise render as motion button
   return (
-    <button
+    <motion.button
       onClick={handleClick}
       disabled={disabled}
       style={combinedStyles}
       className={`button button-${variant} button-${size} ${className}`}
+      whileHover={hoverAnimation}
+      whileTap={tapAnimation}
+      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
       {...props}
     >
       {children}
-    </button>
+    </motion.button>
   );
 };
 

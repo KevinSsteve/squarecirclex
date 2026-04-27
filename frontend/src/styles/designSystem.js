@@ -113,32 +113,52 @@ export const borderRadius = {
 };
 
 export const shadows = {
+  // Subtle shadows for cards and containers
   sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
   base: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
   md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
   lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
   xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
   '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+  
+  // Colored shadows for emphasis
+  primary: '0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
+  hover: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.08)',
+  
+  // Inner shadow for depth
+  inner: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+  
   none: 'none',
 };
 
 export const transitions = {
-  // Duration
+  // Duration - following 2024 best practices
   duration: {
+    instant: '100ms',
     fast: '150ms',
     base: '200ms',
-    slow: '300ms',
+    normal: '300ms',
+    slow: '400ms',
     slower: '500ms',
   },
   
-  // Timing Functions
+  // Timing Functions - optimized for perceived performance
   timing: {
     ease: 'ease',
-    easeIn: 'ease-in',
-    easeOut: 'ease-out',
-    easeInOut: 'ease-in-out',
+    easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+    easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
+    easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
     linear: 'linear',
+    // Custom smooth curves
+    smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    bounce: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
   },
+  
+  // Common transition combinations
+  all: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+  transform: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+  opacity: 'opacity 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+  colors: 'background-color 200ms cubic-bezier(0.4, 0, 0.2, 1), color 200ms cubic-bezier(0.4, 0, 0.2, 1)',
 };
 
 export const zIndex = {
