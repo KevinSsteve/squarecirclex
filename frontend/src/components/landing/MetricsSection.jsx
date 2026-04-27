@@ -1,9 +1,13 @@
-import React from 'react';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import SectionContainer from './SectionContainer';
 import MetricCard from './MetricCard';
 import designSystem from '../../styles/designSystem';
+import { defaultAutoAnimateConfig } from '../../utils/autoAnimateConfig';
 
 const MetricsSection = () => {
+  // AutoAnimate for smooth grid animations (2026 best practice - zero config!)
+  const [gridRef] = useAutoAnimate(defaultAutoAnimateConfig);
+
   const metrics = [
     {
       number: '001',
@@ -66,8 +70,9 @@ const MetricsSection = () => {
         </p>
       </div>
 
-      {/* Metrics Grid */}
+      {/* Metrics Grid with AutoAnimate */}
       <div
+        ref={gridRef}
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr',
