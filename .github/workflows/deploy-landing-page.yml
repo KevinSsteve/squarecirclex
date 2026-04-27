@@ -41,12 +41,11 @@ jobs:
       run: npm run build
       env:
         CI: false
-        PUBLIC_URL: /experta-landing-page
     
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: ./frontend/build
+        path: ./frontend/dist
 
   deploy:
     environment:

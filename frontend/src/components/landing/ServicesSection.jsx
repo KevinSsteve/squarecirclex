@@ -1,8 +1,10 @@
 import ServiceCard from './ServiceCard';
 import SectionContainer from './SectionContainer';
-import { colors, typography, spacing } from '../../styles/designSystem';
+import { colors, typography, spacing, transitions } from '../../styles/designSystem';
+import { useScrollAnimation } from '../../hooks/useScrollAnimation';
 
 const ServicesSection = () => {
+  const { ref: sectionRef, isVisible } = useScrollAnimation();
   const services = [
     {
       number: '001',
@@ -102,6 +104,37 @@ const ServicesSection = () => {
   };
 
   const responsiveStyles = `
+    .services-section {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity ${transitions.duration.slow} ${transitions.timing.easeOut},
+                  transform ${transitions.duration.slow} ${transitions.timing.easeOut};
+    }
+
+    .services-section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .service-card {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity ${transitions.duration.base} ${transitions.timing.easeOut},
+                  transform ${transitions.duration.base} ${transitions.timing.easeOut};
+    }
+
+    .services-section.visible .service-card {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .services-section.visible .service-card:nth-child(1) { transition-delay: 0ms; }
+    .services-section.visible .service-card:nth-child(2) { transition-delay: 100ms; }
+    .services-section.visible .service-card:nth-child(3) { transition-delay: 200ms; }
+    .services-section.visible .service-card:nth-child(4) { transition-delay: 300ms; }
+    .services-section.visible .service-card:nth-child(5) { transition-delay: 400ms; }
+    .services-section.visible .service-card:nth-child(6) { transition-delay: 500ms; }
+
     @media (max-width: 1024px) {
       .services-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -116,6 +149,15 @@ const ServicesSection = () => {
       }
       .services-subtitle {
         font-size: ${typography.fontSize.lg};
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .services-section,
+      .service-card {
+        transition: none;
+        opacity: 1;
+        transform: none;
       }
     }
   `;
@@ -134,15 +176,20 @@ const ServicesSection = () => {
               e maximizar resultados nas redes sociais.
             </p>
           </div>
-          <div style={styles.grid} className="services-grid">
+          <div 
+            ref={sectionRef}
+            style={styles.grid} 
+            className={`services-grid services-section ${isVisible ? 'visible' : ''}`}
+          >
             {services.map((service) => (
-              <ServiceCard
-                key={service.number}
-                number={service.number}
-                title={service.title}
-                description={service.description}
-                capabilities={service.capabilities}
-              />
+              <div key={service.number} className="service-card">
+                <ServiceCard
+                  number={service.number}
+                  title={service.title}
+                  description={service.description}
+                  capabilities={service.capabilities}
+                />
+              </div>
             ))}
           </div>
         </SectionContainer>

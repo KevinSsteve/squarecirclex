@@ -8,10 +8,11 @@ Write-Host ""
 
 # Verificar se Git está instalado
 Write-Host "1. Verificando Git..." -ForegroundColor Yellow
-try {
+$gitCheck = Get-Command git -ErrorAction SilentlyContinue
+if ($gitCheck) {
     $gitVersion = git --version
     Write-Host "   ✓ Git encontrado: $gitVersion" -ForegroundColor Green
-} catch {
+} else {
     Write-Host "   ✗ Git não encontrado! Instale o Git primeiro." -ForegroundColor Red
     Write-Host "   Download: https://git-scm.com/download/win" -ForegroundColor Yellow
     exit 1
@@ -73,10 +74,10 @@ if ([string]::IsNullOrWhiteSpace($message)) {
     $message = $defaultMessage
 }
 
-try {
-    git commit -m "$message"
+git commit -m "$message"
+if ($LASTEXITCODE -eq 0) {
     Write-Host "   ✓ Commit criado" -ForegroundColor Green
-} catch {
+} else {
     Write-Host "   ✗ Erro ao criar commit" -ForegroundColor Red
     exit 1
 }
@@ -112,21 +113,21 @@ Write-Host ""
 Write-Host "7. Fazendo push..." -ForegroundColor Yellow
 $push = Read-Host "   Fazer push para GitHub? (s/n)"
 if ($push -eq "s") {
-    try {
-        # Verificar se branch main existe
-        $currentBranch = git branch --show-current
-        if ($currentBranch -ne "main") {
-            Write-Host "   ! Branch atual: $currentBranch" -ForegroundColor Yellow
-            $rename = Read-Host "   Renomear para 'main'? (s/n)"
-            if ($rename -eq "s") {
-                git branch -M main
-                Write-Host "   ✓ Branch renomeado para 'main'" -ForegroundColor Green
-            }
+    # Verificar se branch main existe
+    $currentBranch = git branch --show-current
+    if ($currentBranch -ne "main") {
+        Write-Host "   ! Branch atual: $currentBranch" -ForegroundColor Yellow
+        $rename = Read-Host "   Renomear para 'main'? (s/n)"
+        if ($rename -eq "s") {
+            git branch -M main
+            Write-Host "   ✓ Branch renomeado para 'main'" -ForegroundColor Green
         }
-        
-        # Fazer push
-        Write-Host "   Enviando para GitHub..." -ForegroundColor Cyan
-        git push -u origin main
+    }
+    
+    # Fazer push
+    Write-Host "   Enviando para GitHub..." -ForegroundColor Cyan
+    git push -u origin main 2>&1
+    if ($LASTEXITCODE -eq 0) {
         Write-Host "   ✓ Push concluído com sucesso!" -ForegroundColor Green
         
         Write-Host ""
@@ -141,10 +142,8 @@ if ($push -eq "s") {
         Write-Host "4. Aguarde alguns minutos" -ForegroundColor White
         Write-Host "5. Acesse: https://SEU_USERNAME.github.io/SEU_REPO/" -ForegroundColor White
         Write-Host ""
-        
-    } catch {
+    } else {
         Write-Host "   ✗ Erro ao fazer push" -ForegroundColor Red
-        Write-Host "   Erro: $_" -ForegroundColor Red
         Write-Host ""
         Write-Host "Possíveis soluções:" -ForegroundColor Yellow
         Write-Host "1. Verifique suas credenciais do GitHub" -ForegroundColor White

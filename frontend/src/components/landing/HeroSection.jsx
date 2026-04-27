@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom';
 import Badge from './Badge';
 import Button from './Button';
 import SectionContainer from './SectionContainer';
-import { typography, spacing, colors } from '../../styles/designSystem';
+import { typography, spacing, colors, transitions } from '../../styles/designSystem';
+import { useParallax } from '../../hooks/useScrollAnimation';
 
 const HeroSection = () => {
+  const { ref: parallaxRef, transform } = useParallax(0.3);
   const styles = {
     container: {
       textAlign: 'center',
@@ -41,8 +43,39 @@ const HeroSection = () => {
     },
   };
 
-  // Mobile responsive styles
-  const mobileStyles = `
+  // Animation styles
+  const animationStyles = `
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .hero-badge {
+      animation: fadeInUp ${transitions.duration.slow} ${transitions.timing.easeOut} 0ms forwards;
+      opacity: 0;
+    }
+
+    .hero-headline {
+      animation: fadeInUp ${transitions.duration.slow} ${transitions.timing.easeOut} 150ms forwards;
+      opacity: 0;
+    }
+
+    .hero-subheadline {
+      animation: fadeInUp ${transitions.duration.slow} ${transitions.timing.easeOut} 300ms forwards;
+      opacity: 0;
+    }
+
+    .hero-cta-container {
+      animation: fadeInUp ${transitions.duration.slow} ${transitions.timing.easeOut} 450ms forwards;
+      opacity: 0;
+    }
+
     @media (max-width: 768px) {
       .hero-headline {
         font-size: ${typography.fontSize['4xl']};
@@ -58,15 +91,25 @@ const HeroSection = () => {
         width: 100%;
       }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hero-badge,
+      .hero-headline,
+      .hero-subheadline,
+      .hero-cta-container {
+        animation: none;
+        opacity: 1;
+      }
+    }
   `;
 
   return (
     <>
-      <style>{mobileStyles}</style>
+      <style>{animationStyles}</style>
       <SectionContainer>
-        <div style={styles.container}>
+        <div style={styles.container} ref={parallaxRef}>
           {/* Badge */}
-          <div style={styles.badgeWrapper}>
+          <div style={styles.badgeWrapper} className="hero-badge">
             <Badge variant="default" size="md">
               ✨ Powered by AI & AWS
             </Badge>

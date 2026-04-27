@@ -1,0 +1,282 @@
+/**
+ * Accessibility Styles for Landing Page
+ * Ensures WCAG AA compliance and keyboard navigation
+ */
+
+/* Skip to main content link (for screen readers and keyboard users) */
+.skip-to-main {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px 16px;
+  text-decoration: none;
+  z-index: 100;
+  border-radius: 0 0 4px 0;
+  font-weight: 500;
+}
+
+.skip-to-main:focus {
+  top: 0;
+}
+
+/* Focus indicators for all interactive elements */
+*:focus {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+/* Enhanced focus for buttons */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus for form inputs */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 0;
+  border-color: #000;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor !important;
+  }
+  
+  button,
+  a {
+    outline-width: 3px !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only-focusable:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Ensure sufficient color contrast */
+.text-gray-600 {
+  color: #4B5563; /* WCAG AA compliant on white */
+}
+
+.text-gray-500 {
+  color: #6B7280; /* WCAG AA compliant on white */
+}
+
+/* Keyboard navigation indicators */
+.keyboard-nav *:focus {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+/* Remove focus outline when using mouse */
+.mouse-nav *:focus {
+  outline: none;
+}
+
+.mouse-nav *:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+/* Accessible link styles */
+a {
+  text-decoration-skip-ink: auto;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Ensure interactive elements are large enough (44x44px minimum) */
+button,
+a,
+input[type="button"],
+input[type="submit"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Accessible form labels */
+label {
+  cursor: pointer;
+}
+
+/* Error states with sufficient contrast */
+.error-text {
+  color: #DC2626; /* WCAG AA compliant */
+}
+
+.error-border {
+  border-color: #DC2626;
+}
+
+/* Success states with sufficient contrast */
+.success-text {
+  color: #059669; /* WCAG AA compliant */
+}
+
+/* Loading states */
+.loading {
+  cursor: wait;
+}
+
+.loading * {
+  pointer-events: none;
+}
+
+/* Disabled states */
+:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Focus trap for modals */
+.modal-open {
+  overflow: hidden;
+}
+
+/* Ensure text is selectable */
+.select-text {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Prevent text selection where not needed */
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Accessible tooltips */
+[role="tooltip"] {
+  position: absolute;
+  z-index: 1000;
+  background: #000;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* Accessible accordions */
+[aria-expanded="false"] .accordion-content {
+  display: none;
+}
+
+[aria-expanded="true"] .accordion-content {
+  display: block;
+}
+
+/* Accessible carousels */
+.carousel-button {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  padding: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.carousel-button:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.carousel-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Pagination dots */
+.pagination-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #D1D5DB;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pagination-dot[aria-current="true"] {
+  background: #000;
+}
+
+.pagination-dot:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+/* Accessible tables */
+table {
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  a[href]::after {
+    content: " (" attr(href) ")";
+  }
+}
