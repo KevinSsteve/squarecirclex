@@ -43,12 +43,12 @@ const MetricsSection = () => {
       <div style={{ textAlign: 'center', marginBottom: designSystem.spacing['2xl'] }}>
         <h2
           style={{
-            fontSize: designSystem.typography.sizes['3xl'],
-            fontWeight: designSystem.typography.weights.bold,
+            fontSize: designSystem.typography.fontSize['3xl'],
+            fontWeight: designSystem.typography.fontWeight.bold,
             color: designSystem.colors.black,
             marginBottom: designSystem.spacing.md,
             [`@media (min-width: ${designSystem.breakpoints.md})`]: {
-              fontSize: designSystem.typography.sizes['4xl']
+              fontSize: designSystem.typography.fontSize['4xl']
             }
           }}
         >
@@ -56,7 +56,7 @@ const MetricsSection = () => {
         </h2>
         <p
           style={{
-            fontSize: designSystem.typography.sizes.lg,
+            fontSize: designSystem.typography.fontSize.lg,
             color: designSystem.colors.gray[600],
             maxWidth: '600px',
             margin: '0 auto'

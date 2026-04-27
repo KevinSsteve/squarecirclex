@@ -107,8 +107,8 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
           padding: `${designSystem.spacing.xs} ${designSystem.spacing.sm}`,
           backgroundColor: designSystem.colors.gray[100],
           borderRadius: '4px',
-          fontSize: designSystem.typography.sizes.xs,
-          fontWeight: designSystem.typography.weights.medium,
+          fontSize: designSystem.typography.fontSize.xs,
+          fontWeight: designSystem.typography.fontWeight.medium,
           color: designSystem.colors.gray[600],
           marginBottom: designSystem.spacing.md,
           fontFamily: 'monospace'
@@ -120,8 +120,8 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
       {/* Metric Value */}
       <div
         style={{
-          fontSize: designSystem.typography.sizes['4xl'],
-          fontWeight: designSystem.typography.weights.bold,
+          fontSize: designSystem.typography.fontSize['4xl'],
+          fontWeight: designSystem.typography.fontWeight.bold,
           color: designSystem.colors.black,
           marginBottom: designSystem.spacing.sm,
           lineHeight: 1.2
@@ -133,9 +133,9 @@ const MetricCard = ({ number, value, label, delay = 0 }) => {
       {/* Metric Label */}
       <div
         style={{
-          fontSize: designSystem.typography.sizes.base,
+          fontSize: designSystem.typography.fontSize.base,
           color: designSystem.colors.gray[600],
-          fontWeight: designSystem.typography.weights.medium
+          fontWeight: designSystem.typography.fontWeight.medium
         }}
       >
         {label}
