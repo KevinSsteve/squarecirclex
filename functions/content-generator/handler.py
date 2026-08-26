@@ -29,7 +29,7 @@ BRANDS_TABLE_NAME = os.environ['BRANDS_TABLE_NAME']
 POSTS_TABLE_NAME = os.environ['POSTS_TABLE_NAME']
 S3_BUCKET_NAME = os.environ['S3_BUCKET_NAME']
 BEDROCK_CLAUDE_MODEL_ID = os.environ['BEDROCK_CLAUDE_MODEL_ID']
-BEDROCK_TITAN_MODEL_ID = os.environ['BEDROCK_TITAN_MODEL_ID']
+BEDROCK_IMAGE_MODEL_ID = os.environ['BEDROCK_IMAGE_MODEL_ID']
 EVENTBRIDGE_BUS_NAME = os.environ['EVENTBRIDGE_BUS_NAME']
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
@@ -186,7 +186,7 @@ def generate_content_calendar(brand_data: Dict[str, Any]) -> List[Dict[str, Any]
         # Generate caption using Claude
         caption = generate_caption(brand_data, content_pillar)
         
-        # Generate image using Titan
+        # Generate image using Stable Image Ultra (premium photorealistic quality)
         image_url = generate_and_upload_image(
             brand_data,
             content_pillar,
@@ -241,7 +241,10 @@ def calculate_scheduled_time(date: datetime, time_str: str) -> str:
 
 def generate_caption(brand_data: Dict[str, Any], content_pillar: str) -> str:
     """
-    Generate caption using Claude via Bedrock
+    Generate caption using Claude Opus 5 via Bedrock
+    
+    Claude Opus 5 is Anthropic's most advanced model, delivering
+    frontier-level intelligence for creative content generation.
     
     Args:
         brand_data: Brand information
@@ -251,35 +254,39 @@ def generate_caption(brand_data: Dict[str, Any], content_pillar: str) -> str:
         Generated caption text
     """
     try:
-        # Build prompt for Claude
-        prompt = f"""Generate an engaging social media caption for {brand_data['brand_name']}.
+        # Build prompt optimized for Claude Opus 5's advanced reasoning
+        prompt = f"""You are a world-class social media strategist and copywriter. 
+Generate an exceptional, high-converting social media caption for {brand_data['brand_name']}.
 
-Brand Information:
+Brand Profile:
 - Industry: {brand_data.get('industry', 'N/A')}
 - Target Audience: {brand_data.get('target_audience', 'N/A')}
 - Tone of Voice: {brand_data.get('tone_of_voice', 'professional and friendly')}
+- Visual Style: {brand_data.get('visual_style', 'modern')}
 - Content Pillar: {content_pillar}
 
 Requirements:
-- Write in the brand's tone of voice
-- Focus on the content pillar theme
-- Keep it engaging and authentic
-- Include 2-3 relevant hashtags
+- Write in the brand's authentic tone of voice
+- Focus on the content pillar theme with a creative angle
+- Create an emotional hook in the first line that stops scrolling
+- Include a clear call-to-action
+- Add 3-5 highly relevant, trending hashtags
 - Maximum 2200 characters (Instagram limit)
+- Make it feel human, not AI-generated
 
-Generate only the caption text, no additional commentary."""
+Generate only the caption text, no additional commentary or formatting."""
 
-        # Call Bedrock Claude
+        # Call Bedrock Claude Opus 5 - Most advanced model available
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 500,
+            "max_tokens": 800,
             "messages": [
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            "temperature": 0.7
+            "temperature": 0.8
         }
         
         response = bedrock_runtime.invoke_model(
@@ -312,7 +319,10 @@ def generate_and_upload_image(
     brand_id: str
 ) -> str:
     """
-    Generate image using Titan and upload to S3
+    Generate image using Stable Image Ultra v1.1 and upload to S3
+    
+    Stable Image Ultra produces the highest quality, photorealistic outputs
+    perfect for professional social media and large format applications.
     
     Args:
         brand_data: Brand information
@@ -324,44 +334,38 @@ def generate_and_upload_image(
         S3 URL of uploaded image
     """
     try:
-        # Build image generation prompt
+        # Build premium image generation prompt optimized for Stable Image Ultra
         visual_style = brand_data.get('visual_style', 'modern and professional')
         
-        image_prompt = f"""Create a high-quality social media image with the following characteristics:
+        image_prompt = f"""Professional social media visual, {visual_style} style.
+Theme: {content_pillar}. Brand: {brand_data['brand_name']}, Industry: {brand_data.get('industry', 'business')}.
+High-quality, studio-lit, vibrant colors, perfect composition, photorealistic, 
+editorial quality, trending on social media, Instagram-worthy, sharp focus, 
+beautiful lighting, professional photography."""
 
-Visual Style: {visual_style}
-Theme: {content_pillar}
-Brand: {brand_data['brand_name']}
-Industry: {brand_data.get('industry', 'N/A')}
-
-The image should be visually appealing, on-brand, and suitable for Instagram.
-Resolution: 1080x1080 pixels (square format)."""
-
-        # Call Bedrock Titan Image Generator
+        # Call Bedrock Stable Image Ultra v1.1
+        # API format: simple prompt-based request
         request_body = {
-            "taskType": "TEXT_IMAGE",
-            "textToImageParams": {
-                "text": image_prompt
-            },
-            "imageGenerationConfig": {
-                "numberOfImages": 1,
-                "quality": "premium",
-                "height": 1080,
-                "width": 1080,
-                "cfgScale": 8.0
-            }
+            "prompt": image_prompt,
+            "mode": "text-to-image",
+            "aspect_ratio": "1:1",
+            "output_format": "png"
         }
         
         response = bedrock_runtime.invoke_model(
-            modelId=BEDROCK_TITAN_MODEL_ID,
+            modelId=BEDROCK_IMAGE_MODEL_ID,
             body=json.dumps(request_body)
         )
         
         response_body = json.loads(response['body'].read())
         
-        # Extract image data
+        # Extract image data from Stable Image Ultra response
         if 'images' not in response_body or len(response_body['images']) == 0:
-            raise Exception("No image generated by Titan")
+            # Check for finish_reasons indicating filtering
+            finish_reasons = response_body.get('finish_reasons', [])
+            if finish_reasons and finish_reasons[0] is not None:
+                raise Exception(f"Image generation filtered: {finish_reasons[0]}")
+            raise Exception("No image generated by Stable Image Ultra")
         
         image_base64 = response_body['images'][0]
         image_bytes = base64.b64decode(image_base64)

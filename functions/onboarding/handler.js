@@ -22,7 +22,7 @@ const bedrockClient = new BedrockRuntimeClient({
 });
 
 // Environment variables
-const BEDROCK_MODEL_ID = process.env.BEDROCK_CLAUDE_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+const BEDROCK_MODEL_ID = process.env.BEDROCK_CLAUDE_MODEL_ID || 'global.anthropic.claude-opus-5';
 const EVENTBRIDGE_BUS_NAME = process.env.EVENTBRIDGE_BUS_NAME || 'default';
 
 /**

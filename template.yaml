@@ -20,7 +20,8 @@ Globals:
         EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
         ENCRYPTION_KEY_ID: !Ref CredentialEncryptionKey
         BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
-        BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+        BEDROCK_CLAUDE_FAST_MODEL_ID: !Ref BedrockClaudeFastModelId
+        BEDROCK_IMAGE_MODEL_ID: !Ref BedrockImageModelId
   Api:
     Cors:
       AllowOrigin: "'*'"
@@ -40,13 +41,18 @@ Parameters:
 
   BedrockClaudeModelId:
     Type: String
-    Default: us.anthropic.claude-3-5-sonnet-20240620-v1:0
-    Description: Bedrock Claude model ID - US System Profile for Cross-Region Inference (CRI)
+    Default: global.anthropic.claude-opus-5
+    Description: Bedrock Claude model ID - Claude Opus 5 (Global Cross-Region Inference) - Most advanced AI model
 
-  BedrockTitanModelId:
+  BedrockClaudeFastModelId:
     Type: String
-    Default: amazon.titan-image-generator-v2:0
-    Description: Bedrock Titan Image Generator model ID
+    Default: global.anthropic.claude-sonnet-5
+    Description: Bedrock Claude fast model - Claude Sonnet 5 (Global CRI) - For high-speed tasks
+
+  BedrockImageModelId:
+    Type: String
+    Default: stability.stable-image-ultra-v1:0
+    Description: Bedrock Image Generation model - Stable Image Ultra v1.1 - Premium photorealistic quality
 
 Resources:
   # ==================== KMS Key for Credential Encryption ====================
@@ -739,7 +745,7 @@ Resources:
           POSTS_TABLE_NAME: !Ref PostsTable
           S3_BUCKET_NAME: !Ref ContentBucket
           BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
-          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+          BEDROCK_IMAGE_MODEL_ID: !Ref BedrockImageModelId
           EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
       Events:
         BrandOnboardingComplete:
@@ -799,8 +805,9 @@ Resources:
           POSTS_TABLE_NAME: !Ref PostsTable
           BRANDS_TABLE_NAME: !Ref BrandsTable
           BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
+          BEDROCK_CLAUDE_FAST_MODEL_ID: !Ref BedrockClaudeFastModelId
           S3_BUCKET_NAME: !Ref ContentBucket
-          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+          BEDROCK_IMAGE_MODEL_ID: !Ref BedrockImageModelId
       Events:
         ChatMessage:
           Type: Api
@@ -879,7 +886,7 @@ Resources:
           BRANDS_TABLE_NAME: !Ref BrandsTable
           S3_BUCKET_NAME: !Ref ContentBucket
           BEDROCK_CLAUDE_MODEL_ID: !Ref BedrockClaudeModelId
-          BEDROCK_TITAN_MODEL_ID: !Ref BedrockTitanModelId
+          BEDROCK_IMAGE_MODEL_ID: !Ref BedrockImageModelId
           EVENTBRIDGE_BUS_NAME: !Ref ExpertaEventBus
       Events:
         GetPosts:

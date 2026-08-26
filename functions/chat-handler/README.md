@@ -105,8 +105,9 @@ Retrieves information about posts or the content calendar.
 
 ## Environment Variables
 
-- `BEDROCK_CLAUDE_MODEL_ID`: Claude model ID for text generation (default: anthropic.claude-3-5-sonnet-20241022-v2:0)
-- `BEDROCK_TITAN_MODEL_ID`: Titan model ID for image generation (default: amazon.titan-image-generator-v1)
+- `BEDROCK_CLAUDE_MODEL_ID`: Claude model ID for text generation (default: global.anthropic.claude-opus-5)
+- `BEDROCK_CLAUDE_FAST_MODEL_ID`: Claude fast model for prompt refinement (default: global.anthropic.claude-sonnet-5)
+- `BEDROCK_IMAGE_MODEL_ID`: Image model ID for generation (default: stability.stable-image-ultra-v1:0)
 - `S3_BUCKET_NAME`: S3 bucket for image storage
 - `BRANDS_TABLE_NAME`: DynamoDB table name for brands
 - `POSTS_TABLE_NAME`: DynamoDB table name for posts

@@ -40,7 +40,7 @@ The function is triggered by an EventBridge event with the following structure:
 - `POSTS_TABLE_NAME`: DynamoDB table for posts
 - `S3_BUCKET_NAME`: S3 bucket for image storage
 - `BEDROCK_CLAUDE_MODEL_ID`: Claude model ID for caption generation
-- `BEDROCK_TITAN_MODEL_ID`: Titan model ID for image generation
+- `BEDROCK_IMAGE_MODEL_ID`: Image model ID for generation (Stable Image Ultra v1.1)
 - `EVENTBRIDGE_BUS_NAME`: EventBridge bus for events
 - `AWS_REGION`: AWS region
 

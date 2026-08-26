@@ -11,8 +11,8 @@ from unittest.mock import MagicMock
 os.environ['BRANDS_TABLE_NAME'] = 'test-brands-table'
 os.environ['POSTS_TABLE_NAME'] = 'test-posts-table'
 os.environ['S3_BUCKET_NAME'] = 'test-bucket'
-os.environ['BEDROCK_CLAUDE_MODEL_ID'] = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
-os.environ['BEDROCK_TITAN_MODEL_ID'] = 'amazon.titan-image-generator-v1'
+os.environ['BEDROCK_CLAUDE_MODEL_ID'] = 'global.anthropic.claude-opus-5'
+os.environ['BEDROCK_IMAGE_MODEL_ID'] = 'stability.stable-image-ultra-v1:0'
 os.environ['EVENTBRIDGE_BUS_NAME'] = 'default'
 os.environ['AWS_REGION'] = 'us-east-1'
 
