@@ -28,8 +28,9 @@ const s3Client = new S3Client({
 });
 
 // Environment variables
-const BEDROCK_CLAUDE_MODEL_ID = process.env.BEDROCK_CLAUDE_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
-const BEDROCK_TITAN_MODEL_ID = process.env.BEDROCK_TITAN_MODEL_ID || 'amazon.titan-image-generator-v2:0';
+const BEDROCK_CLAUDE_MODEL_ID = process.env.BEDROCK_CLAUDE_MODEL_ID || 'global.anthropic.claude-opus-5';
+const BEDROCK_CLAUDE_FAST_MODEL_ID = process.env.BEDROCK_CLAUDE_FAST_MODEL_ID || 'global.anthropic.claude-sonnet-5';
+const BEDROCK_IMAGE_MODEL_ID = process.env.BEDROCK_IMAGE_MODEL_ID || 'stability.stable-image-ultra-v1:0';
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
 // Rate limit configuration
@@ -578,7 +579,7 @@ ONLY after the user approves the calendar and says "yes" to creating the post OR
   * 📝 LEGENDA: [2-3 sentence caption in Portuguese matching brand tone]
   * 🏷️ HASHTAGS: [5-10 relevant hashtags for ${brandContext.industry}]
   * 🎨 DESCRIÇÃO DA IMAGEM: [Highly detailed visual prompt for image generation matching ${brandContext.visual_style || 'Modern'} style]
-- The "🎨 DESCRIÇÃO DA IMAGEM:" string is MANDATORY for our Amazon Titan integration
+- The "🎨 DESCRIÇÃO DA IMAGEM:" string is MANDATORY for our Stable Image Ultra integration
 
 CRITICAL JSON OUTPUT RULES:
 1. OUTPUT ONLY VALID JSON - NO MARKDOWN CODE BLOCKS
@@ -643,7 +644,7 @@ For PHASE 3 (Execution):
 CRITICAL FIELD REQUIREMENTS:
 - caption: REQUIRED - Must be 2-3 sentences in Portuguese
 - hashtags: REQUIRED - Must be array of 5-10 hashtags
-- image_description: REQUIRED - NEVER omit this field! Must be detailed visual prompt for Amazon Titan image generation. Include style, colors, mood, composition. Example: "Uma imagem moderna e profissional mostrando [subject], com cores [colors], estilo [style], transmitindo [mood]"
+- image_description: REQUIRED - NEVER omit this field! Must be detailed visual prompt for Stable Image Ultra image generation. Include style, colors, mood, composition. Example: "Uma imagem moderna e profissional mostrando [subject], com cores [colors], estilo [style], transmitindo [mood]"
 
 BEHAVIORAL RULES:
 - ALWAYS lead the conversation - you are the expert
@@ -791,22 +792,23 @@ function sanitizeImageDescription(description) {
 }
 
 /**
- * PROMPT ARCHITECT: Refine image description into professional Titan-optimized prompt
- * Uses Claude to extract visual keywords and apply Titan best practices
+ * PROMPT ARCHITECT: Refine image description into professional Stable Image Ultra-optimized prompt
+ * Uses Claude Opus 5 to extract visual keywords and apply Stable Diffusion best practices
  */
 async function refineImagePrompt(imageDescription, brandContext) {
   try {
-    const systemPrompt = `You are a Visual Prompt Architect specializing in Amazon Titan Image Generator prompts.
+    const systemPrompt = `You are a Visual Prompt Architect specializing in Stable Image Ultra prompts (Stability AI's premium photorealistic model).
 
-Your task: Transform a post caption/description into a professional, Titan-optimized image generation prompt.
+Your task: Transform a post caption/description into a professional, Stable Image Ultra-optimized image generation prompt.
 
-TITAN BEST PRACTICES:
+STABLE IMAGE ULTRA BEST PRACTICES:
 - Focus on visual elements: Subject, Style, Lighting, Composition, Mood
-- Use descriptive adjectives: photorealistic, cinematic, minimalist, vibrant, soft
-- Specify quality: high resolution, 8k, professional photography, sharp focus
+- Use descriptive quality keywords: photorealistic, cinematic, studio lighting, 8k UHD
+- Specify artistic direction: editorial photography, professional lighting, sharp focus
 - NEVER include text, words, letters, or typography in the prompt
 - Avoid abstract concepts - be concrete and visual
-- Keep prompts concise but detailed (50-100 words)
+- Keep prompts descriptive and detailed (60-120 words)
+- Include camera/photography terms: shallow depth of field, golden hour, bokeh
 
 BRAND CONTEXT:
 - Industry: ${brandContext.industry}
@@ -818,14 +820,14 @@ Return ONLY the refined prompt as plain text. No JSON, no explanations, just the
 
 EXAMPLES:
 Input: "Dicas para aumentar o valor do seu imóvel"
-Output: "A modern, bright residential interior with elegant furniture and natural lighting, photorealistic style, professional real estate photography, clean minimalist composition, warm inviting atmosphere, high resolution 8k quality, sharp focus"
+Output: "A luxurious modern residential interior with elegant furniture, natural golden hour lighting streaming through floor-to-ceiling windows, photorealistic editorial photography, clean minimalist Scandinavian composition, warm inviting atmosphere, marble countertops, indoor plants, 8k UHD quality, sharp focus, shallow depth of field"
 
 Input: "Novo corte de cabelo para o verão"
-Output: "A stylish modern barbershop interior with professional haircutting tools, cinematic lighting, contemporary minimalist design, warm professional atmosphere, high-end salon aesthetic, photorealistic 8k quality, sharp focus, clean composition"`;
+Output: "A stylish contemporary barbershop interior with professional chrome haircutting tools, dramatic cinematic lighting with warm tones, contemporary minimalist design, premium salon aesthetic, photorealistic 8k quality, sharp focus, clean composition, bokeh background, editorial magazine quality"`;
 
     const requestBody = {
       anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 200,
+      max_tokens: 300,
       system: systemPrompt,
       messages: [
         {
@@ -837,7 +839,7 @@ Output: "A stylish modern barbershop interior with professional haircutting tool
     };
 
     const command = new InvokeModelCommand({
-      modelId: BEDROCK_CLAUDE_MODEL_ID,
+      modelId: BEDROCK_CLAUDE_FAST_MODEL_ID,
       contentType: 'application/json',
       accept: 'application/json',
       body: JSON.stringify(requestBody)
@@ -847,7 +849,7 @@ Output: "A stylish modern barbershop interior with professional haircutting tool
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
     const refinedPrompt = responseBody.content[0].text.trim();
 
-    ErrorHandler.logInfo('Prompt refined by Claude', {
+    ErrorHandler.logInfo('Prompt refined by Claude Sonnet 5', {
       originalLength: imageDescription.length,
       refinedLength: refinedPrompt.length,
       brandId: brandContext.brand_id
@@ -867,7 +869,8 @@ Output: "A stylish modern barbershop interior with professional haircutting tool
 }
 
 /**
- * Generate image using Amazon Titan and upload to S3 with robust error handling
+ * Generate image using Stable Image Ultra v1.1 and upload to S3 with robust error handling
+ * Stable Image Ultra produces the highest quality, photorealistic outputs
  * Requirements: 8.3
  */
 async function generateAndUploadImage(imageDescription, brandContext, userId) {
@@ -885,41 +888,33 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
       throw new Error('Invalid userId: missing or empty');
     }
     
-    if (!BEDROCK_TITAN_MODEL_ID) {
-      throw new Error('BEDROCK_TITAN_MODEL_ID environment variable not set');
+    if (!BEDROCK_IMAGE_MODEL_ID) {
+      throw new Error('BEDROCK_IMAGE_MODEL_ID environment variable not set');
     }
     
     if (!S3_BUCKET_NAME) {
       throw new Error('S3_BUCKET_NAME environment variable not set');
     }
 
-    // STEP 1: Use Prompt Architect to refine the description
+    // STEP 1: Use Prompt Architect to refine the description for Stable Image Ultra
     const refinedPrompt = await refineImagePrompt(imageDescription, brandContext);
     
     // Build final prompt with brand context
-    const prompt = `${refinedPrompt}. Professional social media image for ${brandContext.industry} brand.`;
+    const prompt = `${refinedPrompt}. Professional social media image for ${brandContext.industry} brand, photorealistic, studio quality.`;
 
     // Ultra-safe fallback prompt for retry
-    const fallbackPrompt = 'A clean, professional, abstract modern corporate background, soft lighting, minimalist design, high quality';
+    const fallbackPrompt = 'A clean, professional, abstract modern corporate background with geometric shapes, soft gradient lighting, minimalist design, high quality, 8k UHD, photorealistic, studio photography';
 
+    // Stable Image Ultra request format
     const createRequestBody = (promptText) => ({
-      taskType: 'TEXT_IMAGE',
-      textToImageParams: {
-        text: promptText,
-        negativeText: 'low quality, blurry, distorted, watermark, text overlay, ugly, deformed'
-      },
-      imageGenerationConfig: {
-        numberOfImages: 1,
-        quality: 'premium',
-        height: 1024,
-        width: 1024,
-        cfgScale: 8.0,
-        seed: Math.floor(Math.random() * 2147483647)
-      }
+      prompt: promptText,
+      mode: 'text-to-image',
+      aspect_ratio: '1:1',
+      output_format: 'png'
     });
 
-    ErrorHandler.logInfo('=== TITAN IMAGE GENERATION START ===', { 
-      modelId: BEDROCK_TITAN_MODEL_ID,
+    ErrorHandler.logInfo('=== STABLE IMAGE ULTRA GENERATION START ===', { 
+      modelId: BEDROCK_IMAGE_MODEL_ID,
       originalDescription: imageDescription.substring(0, 100),
       refinedPrompt: refinedPrompt.substring(0, 150),
       finalPrompt: prompt.substring(0, 150),
@@ -927,14 +922,14 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
       userId: userId
     });
 
-    // STEP 2: First attempt with sanitized prompt
+    // STEP 2: First attempt with refined prompt
     let response;
     let usedFallback = false;
     
     try {
       const requestBody = createRequestBody(prompt);
       const command = new InvokeModelCommand({
-        modelId: BEDROCK_TITAN_MODEL_ID,
+        modelId: BEDROCK_IMAGE_MODEL_ID,
         contentType: 'application/json',
         accept: 'application/json',
         body: JSON.stringify(requestBody)
@@ -952,7 +947,7 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
         errorMessage: bedrockError.message
       });
       
-      // Check if it's a content policy violation (ValidationException)
+      // Check if it's a content policy violation
       const isContentPolicyError = 
         bedrockError.name === 'ValidationException' ||
         bedrockError.code === 'ValidationException' ||
@@ -960,7 +955,8 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
           bedrockError.message.includes('content filters') ||
           bedrockError.message.includes('AUP') ||
           bedrockError.message.includes('Responsible AI Policy') ||
-          bedrockError.message.includes('blocked')
+          bedrockError.message.includes('blocked') ||
+          bedrockError.message.includes('Filter reason')
         ));
 
       if (isContentPolicyError) {
@@ -974,7 +970,7 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
         try {
           const fallbackRequestBody = createRequestBody(fallbackPrompt);
           const fallbackCommand = new InvokeModelCommand({
-            modelId: BEDROCK_TITAN_MODEL_ID,
+            modelId: BEDROCK_IMAGE_MODEL_ID,
             contentType: 'application/json',
             accept: 'application/json',
             body: JSON.stringify(fallbackRequestBody)
@@ -1012,7 +1008,7 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
         }
       } else {
         // Not a content policy error - re-throw the original error
-        throw new Error(`Bedrock Titan invocation failed: ${bedrockError.name} - ${bedrockError.message}`);
+        throw new Error(`Bedrock Stable Image Ultra invocation failed: ${bedrockError.name} - ${bedrockError.message}`);
       }
     }
     
@@ -1021,26 +1017,32 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
     try {
       responseBody = JSON.parse(new TextDecoder().decode(response.body));
     } catch (parseError) {
-      console.error('=== TITAN RESPONSE PARSE FAILED ===');
+      console.error('=== STABLE IMAGE ULTRA RESPONSE PARSE FAILED ===');
       console.error('Parse Error:', parseError.message);
       console.error('Response body type:', typeof response.body);
-      throw new Error(`Failed to parse Titan response: ${parseError.message}`);
+      throw new Error(`Failed to parse Stable Image Ultra response: ${parseError.message}`);
+    }
+    
+    // Check for content filtering in finish_reasons
+    const finishReasons = responseBody.finish_reasons || [];
+    if (finishReasons.length > 0 && finishReasons[0] !== null) {
+      throw new Error(`Image generation filtered: ${finishReasons[0]}`);
     }
     
     // Extract base64 image data with validation
     if (!responseBody.images || !Array.isArray(responseBody.images) || responseBody.images.length === 0) {
-      console.error('=== TITAN RESPONSE INVALID ===');
+      console.error('=== STABLE IMAGE ULTRA RESPONSE INVALID ===');
       console.error('Response body:', JSON.stringify(responseBody, null, 2));
-      throw new Error('Titan response missing images array');
+      throw new Error('Stable Image Ultra response missing images array');
     }
     
     const imageBase64 = responseBody.images[0];
     
     if (!imageBase64 || typeof imageBase64 !== 'string') {
-      throw new Error(`Invalid image data from Titan: ${typeof imageBase64}`);
+      throw new Error(`Invalid image data from Stable Image Ultra: ${typeof imageBase64}`);
     }
     
-    ErrorHandler.logInfo('Image generated successfully by Titan', { 
+    ErrorHandler.logInfo('Image generated successfully by Stable Image Ultra v1.1', { 
       brandId: brandContext.brand_id,
       imageSize: imageBase64.length,
       usedFallback: usedFallback
@@ -1077,7 +1079,7 @@ async function generateAndUploadImage(imageDescription, brandContext, userId) {
     // Construct public S3 URL
     const imageUrl = `https://${S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
     
-    ErrorHandler.logInfo('=== TITAN IMAGE GENERATION COMPLETE ===', { 
+    ErrorHandler.logInfo('=== STABLE IMAGE ULTRA GENERATION COMPLETE ===', { 
       key, 
       imageUrl,
       brandId: brandContext.brand_id,
@@ -1319,7 +1321,7 @@ exports.handler = async (event, context) => {
         silentMode: body.silent_mode
       });
 
-      // Generate and upload image using Titan
+      // Generate and upload image using Stable Image Ultra
       const imageResult = await generateAndUploadImage(body.image_description, brand, userId);
 
       // Handle the new response format
@@ -1548,12 +1550,12 @@ exports.handler = async (event, context) => {
       // Enhance response text with the generated content
       responseData.response = `${result.conversational_response}\n\n📝 LEGENDA:\n${result.post_content.caption}\n\n🏷️ HASHTAGS:\n${result.post_content.hashtags.join(' ')}\n\n🎨 DESCRIÇÃO DA IMAGEM:\n${result.post_content.image_description}`;
       
-      // TITAN INTEGRATION: Generate image and upload to S3 (unless skip flag is set)
+      // STABLE IMAGE ULTRA INTEGRATION: Generate image and upload to S3 (unless skip flag is set)
       const skipImageGeneration = body.skip_image_generation === true;
       
       if (result.post_content.image_description && !skipImageGeneration) {
         try {
-          ErrorHandler.logInfo('Starting Titan image generation and S3 upload', { 
+          ErrorHandler.logInfo('Starting Stable Image Ultra generation and S3 upload', { 
             brandId: brand.brand_id,
             description: result.post_content.image_description.substring(0, 50) 
           });
@@ -1565,7 +1567,7 @@ exports.handler = async (event, context) => {
             // Add image URL to response
             responseData.image_url = imageResult.imageUrl;
             
-            ErrorHandler.logInfo('Titan image generation and S3 upload successful', { 
+            ErrorHandler.logInfo('Stable Image Ultra generation and S3 upload successful', { 
               brandId: brand.brand_id,
               imageUrl: imageResult.imageUrl,
               usedFallback: imageResult.usedFallback

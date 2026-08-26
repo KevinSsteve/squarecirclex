@@ -16,7 +16,7 @@ lint = true
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 confirm_changeset = true
 resolve_s3 = true
-parameter_overrides = "Environment=\"dev\" BedrockClaudeModelId=\"us.anthropic.claude-3-5-sonnet-20240620-v1:0\" BedrockTitanModelId=\"amazon.titan-image-generator-v2:0\""
+parameter_overrides = "Environment=\"dev\" BedrockClaudeModelId=\"global.anthropic.claude-opus-5\" BedrockClaudeFastModelId=\"global.anthropic.claude-sonnet-5\" BedrockImageModelId=\"stability.stable-image-ultra-v1:0\""
 stack_name = "onzo"
 s3_prefix = "onzo"
 image_repositories = []
